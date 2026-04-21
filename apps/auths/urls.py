@@ -34,7 +34,8 @@ urlpatterns = [
 
     # --forgot_password
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot_password'),
-    path('reset-password/<uidb64>/<token>/', ResetPasswordView.as_view(), name='reset_password'),
+#     path('reset-password/<uidb64>/<token>/', ResetPasswordView.as_view(), name='reset_password'),
+     path('reset-password/', ResetPasswordView.as_view(), name='reset_password'),
 
     # ---- google auth
     path('google/', GoogleOauth.as_view(), name='google_login'),

@@ -15,11 +15,11 @@ click-repl==0.3.0
 colorama==0.4.6
 cron-descriptor==1.4.5
 diff-match-patch==20241021
-Django==6.0.4
+Django==5.2.1
 django-allauth==65.16.1
 django-celery-beat==2.9.0
 django-cors-headers==4.9.0
-django-filter==25.2
+django-filter==24.3
 django-import-export==4.4.0
 django-summernote==0.8.20.0
 django-timezone-field==7.2.1
@@ -41,7 +41,9 @@ requests==2.33.1
 s3transfer==0.16.0
 six==1.17.0
 sqlparse==0.5.5
+stripe==15.0.1
 tablib==3.9.0
+typing_extensions==4.15.0
 tzdata==2026.1
 tzlocal==5.3.1
 urllib3==2.6.3

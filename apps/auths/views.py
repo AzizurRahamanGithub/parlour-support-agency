@@ -416,18 +416,16 @@ class PasswordChangeView(APIView):
         update_session_auth_hash(request, user)
 
         return success_response({"message": "Password changed successfully"}, status.HTTP_200_OK)
-
-
+    
+    
 class ForgotPasswordView(APIView):
-    """
-    Send password reset link to user's email
-    """
 
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data["email"]  
+        email = serializer.validated_data["email"]
+
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
@@ -436,49 +434,154 @@ class ForgotPasswordView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Generate token
-        token = default_token_generator.make_token(user)
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        # 🔥 Generate OTP (6 digit)
+        otp = ''.join(random.choices("0123456789", k=6))
 
-        # Build password reset URL
-        reset_url = f"{request.scheme}://{request.get_host()}/api/v1/auth/reset-password/{uid}/{token}/"
-         
-        # Send email
-        subject = "Password Reset Request"
-        body = render_to_string(
-            "reset_password_email.html",
-            {"reset_url": reset_url, "user": user},
+        # 🔥 Save OTP
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.otp = otp
+        profile.otp_created_at = timezone.now()
+        profile.save()
+
+        # =========================
+        # 🔒 EMAIL SEND (PRODUCTION)
+        # =========================
+        """
+        subject = "Password Reset OTP"
+        body = f"Your OTP is: {otp}. It will expire in 10 minutes."
+
+        email_message = EmailMultiAlternatives(
+            subject,
+            body,
+            to=[user.email]
         )
-        email_message = EmailMultiAlternatives(subject, "", to=[user.email])
-        email_message.attach_alternative(body, "text/html")
         email_message.send()
+        """
+
+        # =========================
+        # 🚀 DEV RESPONSE
+        # =========================
+        data = {
+            "email": user.email,
+        }
+
+        # 👉 only show OTP in development
+        from django.conf import settings
+        if settings.DEBUG:
+            data["otp"] = otp
 
         return success_response(
-            "Password reset link sent to your email.",
-            {"email": user.email,
-             "reset_url": reset_url
-             },
+            "OTP generated successfully.",
+            data,
             status=status.HTTP_200_OK
         )
-
-
+        
 class ResetPasswordView(APIView):
-    def post(self, request, uidb64, token):
-        serializer = ResetPasswordSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+
+    def post(self, request):
+        email = request.data.get("email")
+        otp = request.data.get("otp")
+        password = request.data.get("password")
+
+        if not email or not otp or not password:
+            return failure_response(
+                "Email, OTP and password are required.",
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
-            uid = urlsafe_base64_decode(uidb64).decode()
-            user = User.objects.get(pk=uid)
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-            return failure_response("Invalid link.", status=status.HTTP_400_BAD_REQUEST)
+            user = User.objects.get(email=email)
+            profile = user.userprofile
+        except User.DoesNotExist:
+            return failure_response(
+                "User not found.",
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        if not default_token_generator.check_token(user, token):
-            return failure_response("Token is invalid or expired.", status=status.HTTP_400_BAD_REQUEST)
+        # 🔒 OTP check
+        if profile.otp != otp:
+            return failure_response(
+                "Invalid OTP.",
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        user.set_password(serializer.validated_data['password'])
+        if profile.is_otp_expired():
+            return failure_response(
+                "OTP expired.",
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 🔐 Reset password
+        user.set_password(password)
         user.save()
-        return success_response("Password has been reset successfully.")
+
+        # 🔥 clear OTP after use
+        profile.otp = None
+        profile.save()
+
+        return success_response("Password reset successfully.")        
+
+# class ForgotPasswordView(APIView):
+#     """
+#     Send password reset link to user's email
+#     """
+
+#     def post(self, request):
+#         serializer = ForgotPasswordSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+
+#         email = serializer.validated_data["email"]  
+#         try:
+#             user = User.objects.get(email=email)
+#         except User.DoesNotExist:
+#             return failure_response(
+#                 "User with this email does not exist.",
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+
+#         # Generate token
+#         token = default_token_generator.make_token(user)
+#         uid = urlsafe_base64_encode(force_bytes(user.pk))
+
+#         # Build password reset URL
+#         reset_url = f"{request.scheme}://{request.get_host()}/api/v1/auth/reset-password/{uid}/{token}/"
+         
+#         # Send email
+#         subject = "Password Reset Request"
+#         body = render_to_string(
+#             "reset_password_email.html",
+#             {"reset_url": reset_url, "user": user},
+#         )
+#         email_message = EmailMultiAlternatives(subject, "", to=[user.email])
+#         email_message.attach_alternative(body, "text/html")
+#         email_message.send()
+
+#         return success_response(
+#             "Password reset link sent to your email.",
+#             {"email": user.email,
+#              "reset_url": reset_url
+#              },
+#             status=status.HTTP_200_OK
+#         )
+
+
+# class ResetPasswordView(APIView):
+#     def post(self, request, uidb64, token):
+#         serializer = ResetPasswordSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+
+#         try:
+#             uid = urlsafe_base64_decode(uidb64).decode()
+#             user = User.objects.get(pk=uid)
+#         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+#             return failure_response("Invalid link.", status=status.HTTP_400_BAD_REQUEST)
+
+#         if not default_token_generator.check_token(user, token):
+#             return failure_response("Token is invalid or expired.", status=status.HTTP_400_BAD_REQUEST)
+
+#         user.set_password(serializer.validated_data['password'])
+#         user.save()
+#         return success_response("Password has been reset successfully.")
 
 
 class CustomPagination(PageNumberPagination):
@@ -665,13 +768,13 @@ class ContactMessageView(APIView):
             send_mail(
                 subject,
                 message,
-                settings.DEFAULT_FROM_EMAIL,   # from (Brevo verified sender)
-                [settings.CONTACT_EMAIL],      # to   (where you receive)
+                settings.DEFAULT_FROM_EMAIL,  
+                [settings.CONTACT_EMAIL],    
                 fail_silently=False,
             )
 
             return success_response(
-                {"message": "Your message has been sent successfully."},
+                "Your message has been sent successfully.",
                 status=status.HTTP_201_CREATED
             )
 
