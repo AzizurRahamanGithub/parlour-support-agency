@@ -126,6 +126,29 @@ UNFOLD = {
                     {"title": _("Help Us Improve"), "icon": "feedback", "link": "/admin/auths/helpusimprove/"},
                 ],
             },
+            
+           {
+                "title": _("Services"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Service List"),
+                        "icon":  "home_repair_service",   # ✅
+                        "link": "/admin/service/service/",
+                    },
+                    {
+                        "title": _("Service Plan"),
+                        "icon": "assignment",              # ✅
+                        "link": "/admin/service/plan/",
+                    },
+                    {
+                        "title": _("Subscription"),
+                        "icon": "card_membership",         # ✅
+                        "link": "/admin/service/subscription/",
+                    },
+                ],
+            },
 
             {
                 "title": _("Notifications"),

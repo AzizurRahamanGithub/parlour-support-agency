@@ -14,10 +14,15 @@ class Category(models.Model):
         return self.name    
     
 class ServiceLocation(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="location",
+        null=True, blank=True
+    )
     country = models.CharField(max_length=200, blank=True, null=True)
     city = models.CharField(max_length=200, blank=True, null=True)
-    description= models.TextField(null=True, blank=True)
-
+    description = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     def __str__(self):
@@ -61,11 +66,12 @@ class Plan(models.Model):
         
 
 class Service(models.Model):
+    is_published = models.BooleanField(default=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     about= models.TextField(null=True, blank=True)
     category = models.ManyToManyField(Category, blank=True)
     locations = models.ManyToManyField(ServiceLocation, blank=True)
-    gallery= models.URLField(null=True, blank=True)
+    images = models.JSONField(default=list, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
     

@@ -4,6 +4,8 @@ from .models import CustomUser, ContactMessage, HelpUsImprove
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from apps.service.serializers import PlanSerializer
+
 User = get_user_model()
 
 
@@ -75,10 +77,11 @@ class CustomUserAllSerializer(serializers.ModelSerializer):
         
 
 class UserSerializer(serializers.ModelSerializer):
+    plan = PlanSerializer(read_only=True)
 
     class Meta:
         model = CustomUser
-        fields = ('id', 'full_name', 'email', 'is_active',
+        fields = ('id', 'full_name', 'email', 'designation', 'is_active', 'plan',
                   'role', 'address', 'phone_number', 'photo', 'created_at')
         read_only_fields = ('id', 'username', 'email', 'is_active',)
 

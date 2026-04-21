@@ -8,7 +8,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 from import_export.admin import ImportExportActionModelAdmin
-from apps.service.models import Plan
+from apps.service.models import Subscription
 now = timezone.now()
 from django.contrib import admin
 
@@ -18,16 +18,13 @@ class Role(models.TextChoices):
     LEARNER = 'user', 'User'
 
 
-class Designation(models.Model):
-    name = models.CharField(max_length=200, blank=True)
-
-    created_at = models.DateTimeField(auto_now_add=True, blank=True)
-
-    def __str__(self):
-        return self.name
-
-
 class SocialMedia(models.Model):
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="social_media"
+    )
 
     SOCIAL_TYPE_CHOICES = [
         ("facebook", "Facebook"),
@@ -52,14 +49,14 @@ class SocialMedia(models.Model):
     
 
 class CustomUser(AbstractUser):
-    current_plan = models.ForeignKey(Plan, null=True, blank=True, on_delete=models.SET_NULL)
+    current_plan = models.ForeignKey(Subscription, null=True, blank=True, on_delete=models.SET_NULL)
     email = models.EmailField(unique=True)
     is_active= models.BooleanField(default=True)
     role = models.CharField(max_length=10, choices=Role.choices,
                             default=Role.LEARNER, null=True, blank=True)
     address = models.CharField(max_length=255, null=True, blank=True)
-    designation = models.ManyToManyField(Designation, blank=True, null=True)
-    social_media = models.ManyToManyField(SocialMedia, blank=True, null=True)
+    designation = models.CharField(
+        max_length=15, null=True, blank=True)
     phone_number = models.CharField(
         max_length=15, null=True, blank=True)
     photo = models.URLField(null=True, blank=True)
