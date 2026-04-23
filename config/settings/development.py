@@ -1,6 +1,7 @@
 from .base import *
 DEBUG = True
 ALLOWED_HOSTS = ['*']
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -8,7 +9,10 @@ DATABASES = {
     }
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False  # ← True থেকে False করো
+
+CORS_ALLOW_CREDENTIALS = True   # ← এটা add করো
+
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',      
     'http://localhost:3001',      
@@ -23,27 +27,25 @@ CORS_ALLOWED_ORIGINS = [
     'http://172.252.13.75:6724',  
     'http://172.252.13.75:8083',  
     'http://206.162.244.143:6741',
-    'http://127.0.0.1:8000',
     'http://31.97.99.135:8000',
-    
+    'http://10.0.30.73:8000',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
+    'http://localhost:3000',
     'http://127.0.0.1:5500',
     'http://127.0.0.1:5501',
     'http://127.0.0.1:8000',
-    'http://localhost:3000',
     'http://localhost:5173',
     'http://172.252.13.75:7777',  
     'http://172.252.13.75:6543',  
     'http://172.252.13.75:6724',  
     'http://172.252.13.75:8083',  
     'http://206.162.244.143:6741',
-    'http://127.0.0.1:8000',
     'http://31.97.99.135:8000',
+    'http://10.0.30.73:8000',
 ]
-
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_ROOT = BASE_DIR / 'media'

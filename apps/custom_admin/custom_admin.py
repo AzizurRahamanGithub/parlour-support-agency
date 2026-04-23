@@ -134,41 +134,40 @@ UNFOLD = {
                 "items": [
                     {
                         "title": _("Service List"),
-                        "icon":  "home_repair_service",   # ✅
+                        "icon": "home_repair_service",
                         "link": "/admin/service/service/",
                     },
                     {
-                        "title": _("Service Plan"),
-                        "icon": "assignment",              # ✅
-                        "link": "/admin/service/plan/",
+                        "title": _("Categories"),
+                        "icon": "category",
+                        "link": "/admin/service/category/",
                     },
                     {
-                        "title": _("Subscription"),
-                        "icon": "card_membership",         # ✅
-                        "link": "/admin/service/subscription/",
+                        "title": _("Locations"),
+                        "icon": "location_on",
+                        "link": "/admin/service/servicelocation/",
                     },
                 ],
             },
-
-            {
-                "title": _("Notifications"),
+           
+           {
+                "title": _("Subscription"),
                 "separator": True,
                 "collapsible": True,
                 "items": [
-                    {"title": _("All Notifications"), "icon": "notifications", "link": "/admin/notification/notification/"},
-                ],
-            },
+                    {
+                        "title": _("Subscription Plan"),
+                        "icon": "assignment",
+                        "link": "/admin/service/plan/",
+                    },
+                    {
+                        "title": _("Subscribers"),
+                        "icon": "card_membership",
+                        "link": "/admin/service/subscription/",
+                    },
+                ]
+           }
+
         ],
     },
-
-    "TABS": [
-        {
-            "models": ["auths.customuser"],
-            "items": [
-                {"title": _("All Users"), "link": "/admin/auths/customuser/"},
-                {"title": _("Active"), "link": "/admin/auths/customuser/?is_active__exact=1"},
-                {"title": _("Verified"), "link": "/admin/auths/customuser/?is_verified__exact=1"},
-            ],
-        },
-    ],
 }

@@ -3,7 +3,6 @@ from django.conf import settings
 # Create your models here.
 
 
-    
 class Category(models.Model):
     name = models.CharField(max_length=200, blank=True, null=True)
     description= models.TextField(null=True, blank=True)
@@ -11,7 +10,22 @@ class Category(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     def __str__(self):
-        return self.name    
+        return self.name 
+
+class SubCategory(models.Model):
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name="subcategories"
+    )
+    name = models.CharField(max_length=200, blank=True, null=True)
+    description = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.category.name} → {self.name}"   
+    
+       
     
 class ServiceLocation(models.Model):
     user = models.ForeignKey(
@@ -42,6 +56,7 @@ class Plan(models.Model):
     # Limits
     max_listings = models.IntegerField(default=1)
     max_categories = models.IntegerField(default=1)
+    max_sub_categories = models.IntegerField(default=1)
     max_locations = models.IntegerField(default=1)
     max_images = models.IntegerField(default=8)
     max_videos = models.IntegerField(default=1)
