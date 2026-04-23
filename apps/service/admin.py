@@ -6,7 +6,7 @@ from apps.auths.models import SocialMedia
 from .forms import MultipleImagesForm
 from django.contrib.auth.admin import UserAdmin
 from unfold.admin import ModelAdmin
-from .models import Category, ServiceLocation, Plan
+from .models import Category, ServiceLocation, Plan, SubCategory
 
 
 class ServicePriceInline(admin.TabularInline):
@@ -15,6 +15,10 @@ class ServicePriceInline(admin.TabularInline):
     
 class SocialMediaInline(admin.TabularInline):
     model = SocialMedia
+    extra = 1    
+
+class SubCategoryInline(admin.TabularInline):
+    model = SubCategory
     extra = 1    
 
 
@@ -92,7 +96,14 @@ class ServiceAdmin(ModelAdmin):
 
         super().save_model(request, obj, form, change)
         
-admin.site.register(Category)
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    inlines = [SubCategoryInline]
+    list_display = ["name", "created_at"]
+    
+    
+    
+    
 admin.site.register(ServiceLocation)        
 @admin.register(Plan)
 class PlanAdmin(ModelAdmin):

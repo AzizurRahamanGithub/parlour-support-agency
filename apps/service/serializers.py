@@ -1,10 +1,19 @@
 from django.db import models
 from rest_framework import serializers
-from .models import Service, Category, ServiceLocation, ServicePrice, Plan
+from .models import Service, Category, ServiceLocation, ServicePrice, Plan, SubCategory
 from apps.auths.models import SocialMedia, CustomUser
 
 
+
+class SubCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubCategory
+        fields = "__all__"
+        
+        
 class CategorySerializer(serializers.ModelSerializer):
+    sub_category = SubCategorySerializer(many=True, read_only=True)
+    
     class Meta:
         model = Category
         fields = "__all__"

@@ -90,21 +90,21 @@ class ContactMessageAdmin(admin.ModelAdmin):
 
 
 # ---------------- Help Us Improve ---------------- #
-@admin.register(HelpUsImprove)
-class HelpUsImproveAdmin(admin.ModelAdmin):
-    list_display = ( "user", "short_message")
-    search_fields = ("user__email", "improve_message")
-    ordering = ("-id",)
-    list_per_page = 25
+# @admin.register(HelpUsImprove)
+# class HelpUsImproveAdmin(admin.ModelAdmin):
+#     list_display = ( "user", "short_message")
+#     search_fields = ("user__email", "improve_message")
+#     ordering = ("-id",)
+#     list_per_page = 25
 
-    def short_message(self, obj):
-        """Show first 50 chars of feedback message"""
-        return (obj.improve_message[:50] + "...") if len(obj.improve_message) > 50 else obj.improve_message
-    short_message.short_description = "Feedback Message"
+#     def short_message(self, obj):
+#         """Show first 50 chars of feedback message"""
+#         return (obj.improve_message[:50] + "...") if len(obj.improve_message) > 50 else obj.improve_message
+#     short_message.short_description = "Feedback Message"
 
-    class Meta:
-        verbose_name = "Help Us Improve"
-        verbose_name_plural = "User Feedback"
+#     class Meta:
+#         verbose_name = "Help Us Improve"
+#         verbose_name_plural = "User Feedback"
 
 # @admin.register(UserProfile)
 # class UserProfileAdmin(admin.ModelAdmin):
