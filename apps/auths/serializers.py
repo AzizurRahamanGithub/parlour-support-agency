@@ -1,10 +1,12 @@
 from django.db.models import Avg, Count
 from datetime import datetime, timedelta
-from .models import CustomUser, ContactMessage, HelpUsImprove
+from .models import CustomUser, ContactMessage, HelpUsImprove, UserProfile
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from apps.service.serializers import PlanSerializer
+from django.utils import timezone
+import random
 
 User = get_user_model()
 
@@ -12,40 +14,44 @@ User = get_user_model()
 class UserRegisterSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(write_only=True)
     password = serializers.CharField(write_only=True, min_length=6)
-    confirm_password = serializers.CharField(write_only=True, min_length=6)
+    image = serializers.ListField(
+        child=serializers.URLField(), required=False, default=list
+    )
+    licence_image = serializers.ListField(
+        child=serializers.URLField(), required=False, default=list
+    )
+    id_image = serializers.ListField(
+        child=serializers.URLField(), required=False, default=list
+    )
+    id_with_image = serializers.ListField(
+        child=serializers.URLField(), required=False, default=list
+    )
 
     class Meta:
         model = CustomUser
         fields = [
-            "full_name",
-            "email",
+            "full_name", "email", "category",
+            "image", "licence_image", "id_image", "id_with_image",
             "password",
-            "confirm_password"
         ]
 
     def validate(self, data):
-        # Check if email already exists
         if CustomUser.objects.filter(email=data["email"]).exists():
             raise serializers.ValidationError({"email": "Email already exists."})
-
-        # Check password confirmation
-        if data["password"] != data["confirm_password"]:
-            raise serializers.ValidationError({"password": "Password and Confirm Password do not match."})
-
-        return data
 
     def create(self, validated_data):
         full_name = validated_data.pop("full_name")
         password = validated_data.pop("password")
-        validated_data.pop("confirm_password", None)  # Remove confirm_password
-        validated_data.pop("username", None)  # Remove username if present
 
-        # Split full name into first/last
+        image = validated_data.pop("image", [])
+        licence_image = validated_data.pop("licence_image", [])
+        id_image = validated_data.pop("id_image", [])
+        id_with_image = validated_data.pop("id_with_image", [])
+
         name_parts = full_name.split(" ", 1)
         first_name = name_parts[0]
         last_name = name_parts[1] if len(name_parts) > 1 else ""
 
-        # Generate unique username
         base_username = (first_name + last_name).lower()
         username = base_username
         counter = 1
@@ -53,27 +59,68 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             username = f"{base_username}{counter}"
             counter += 1
 
-        # Create user
+        otp = str(random.randint(100000, 999999))
+
         user = CustomUser.objects.create(
             full_name=full_name,
             first_name=first_name,
             last_name=last_name,
-    
             username=username,
-            **validated_data
+            email=validated_data["email"],
+            category=validated_data.get("category", ""),
+            image=image,
+            licence_image=licence_image,
+            id_image=id_image,
+            id_with_image=id_with_image,
+            is_active=False,
+            email_verified=False
         )
+
         user.set_password(password)
-        user.role = 'user'
-        user.is_active= True
         user.save()
+
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.otp = otp
+        profile.otp_created_at = timezone.now()
+        profile.save()
+
+        self.otp = otp
+        self.user_instance = user
+
         return user
     
+ 
+class OTPVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        otp = attrs.get("otp")
+
+        try:
+            profile = UserProfile.objects.select_related("user").get(user__email=email)
+        except UserProfile.DoesNotExist:
+            raise serializers.ValidationError("User not found")
+
+        if not profile.otp:
+            raise serializers.ValidationError("No OTP found")
+
+        if profile.is_otp_expired():
+            raise serializers.ValidationError("OTP expired")
+
+        if profile.otp != otp:
+            raise serializers.ValidationError("Invalid OTP")
+
+        attrs["profile"] = profile
+        return attrs
+ 
     
 class CustomUserAllSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'is_active', 'full_name',
-                  'email', 'role', 'address', 'phone_number', 'photo',]
+                  'email', 'category', 'address', 'phone_number', 'photo',]
         
 
 class UserSerializer(serializers.ModelSerializer):
@@ -82,7 +129,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ('id', 'full_name', 'email', 'designation', 'is_active', 'plan',
-                  'role', 'address', 'phone_number', 'photo', 'created_at')
+                  'category', 'address', 'phone_number', 'photo', 'created_at')
         read_only_fields = ('id', 'username', 'email', 'is_active',)
 
     def create(self, validated_data):
@@ -92,7 +139,6 @@ class UserSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)        
     
 
-
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -101,35 +147,33 @@ class LoginSerializer(serializers.Serializer):
         identifier = data['identifier']
         password = data['password']
 
-        # Find user either by username or email
-        user = None
+        # 🔍 find user
         if '@' in identifier and '.' in identifier:
             user = User.objects.filter(email=identifier).first()
         else:
             user = User.objects.filter(username=identifier).first()
 
-        # If the user is not found, raise an error for identifier
         if not user:
-            raise serializers.ValidationError(
-                {"identifier": "Invalid credentials. Please check your email or username."})
+            raise serializers.ValidationError({
+                "identifier": "Invalid credentials."
+            })
 
-        # Check if the user is active
         if not user.is_active:
-            raise serializers.ValidationError(
-                {"identifier": "Your account is not active. Please verify your email."})
+            raise serializers.ValidationError({
+                "identifier": "Account inactive."
+            })
 
-        # Check password manually and raise an error for password
         if not user.check_password(password):
-            raise serializers.ValidationError(
-                {"password": "Incorrect password. Please try again."})
+            raise serializers.ValidationError({
+                "password": "Incorrect password."
+            })
 
-        # Authenticate the user with the provided password if the account is active and verified
         user = authenticate(username=user.username, password=password)
 
         if not user:
-            raise serializers.ValidationError(
-                "Invalid credentials. Please check your email or password.")
+            raise serializers.ValidationError("Invalid credentials.")
 
+        # 🔥 ONLY return user
         return {"user": user}
 
 
@@ -194,7 +238,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = [
             "id", "email", "username", "password", "full_name",
-            "role", "is_active", "address", "phone_number", "photo"
+            "category", "is_active", "address", "phone_number", "photo"
         ]
         read_only_fields = ["id", "created_at"]
 

@@ -3,9 +3,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Count
 from rest_framework import status
 from apps.core.response import success_response, failure_response
-from .models import Service, Subscription, Plan
+from .models import Service, Subscription, Plan, Category, Country, City
 from apps.core.pagination import BasePaginatedViewSet, CustomPagination
-from .serializers import ServiceSerializer, UserSerializer, PlanSerializer, ServiceLocation
+from .serializers import ServiceSerializer, UserSerializer, PlanSerializer, ServiceLocation, CategorySerializer, CountrySerializer, CitySerializer
 from apps.auths.models import SocialMedia, CustomUser
 from django.utils import timezone
 import stripe            
@@ -16,7 +16,8 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from datetime import datetime
 from django.utils import timezone
-
+from datetime import datetime, timezone as dt_timezone
+from django.utils.timezone import now
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
@@ -25,45 +26,53 @@ class UserListAPIView(APIView):
 
     def get(self, request):
         try:
-            queryset = CustomUser.objects.select_related(
+            queryset = CustomUser.objects.filter(
+                is_active=True,
+                current_plan__isnull=False,
+            ).select_related(
                 "current_plan",
-                "current_plan__plan" 
+                "current_plan__plan"
             ).prefetch_related(
-                "location",
                 "service_set",
-                "service_set__category"
+                "service_set__category",
+                "service_set__subcategory",
+                "service_set__country",
+                "service_set__city",
             ).order_by("-id")
 
-            queryset = queryset.filter(subscription__is_active=True)
-
             plan_name = request.GET.get("plan_name")
-            country = request.GET.get("country")
-            city = request.GET.get("city")
-            category = request.GET.get("category")
+            country   = request.GET.get("country")
+            city      = request.GET.get("city")
+            category  = request.GET.get("category")
 
             if plan_name:
-                queryset = queryset.filter( current_plan__plan__plan_name__iexact=plan_name)
-
+                queryset = queryset.filter(current_plan__plan__plan_name__iexact=plan_name)
             if country:
-                queryset = queryset.filter(location__country__iexact=country)
-
+                queryset = queryset.filter(service__country__name__iexact=country)
             if city:
-                queryset = queryset.filter(location__city__iexact=city)
-
+                queryset = queryset.filter(service__city__name__iexact=city)
             if category:
                 queryset = queryset.filter(service__category__id=category)
 
             queryset = queryset.distinct()
 
-            # ── Location lists ──────────────────────────────────────
-            locations = ServiceLocation.objects.filter(
-                user__isnull=False
-            ).values("country", "city").distinct()
+            # ── Filter lists ─────────────────────────────────────
+            countries = list(Country.objects.values_list("name", flat=True).order_by("name"))
+            cities    = list(City.objects.values_list("name", flat=True).order_by("name"))
 
-            countries = sorted(set(l["country"] for l in locations if l["country"]))
-            cities = sorted(set(l["city"] for l in locations if l["city"]))
+            # category + subcategory list
+            category_list = []
+            for cat in Category.objects.prefetch_related('subcategories').all():
+                category_list.append({
+                    "id": cat.id,
+                    "name": cat.name,
+                    "subcategories": [
+                        {"id": sub.id, "name": sub.name}
+                        for sub in cat.subcategories.all()
+                    ]
+                })
 
-            # ── Pagination ──────────────────────────────────────────
+            # ── Pagination ────────────────────────────────────────
             paginator = CustomPagination()
             paginated_queryset = paginator.paginate_queryset(queryset, request)
             serializer = UserSerializer(paginated_queryset, many=True)
@@ -71,8 +80,11 @@ class UserListAPIView(APIView):
             return success_response(
                 message="User list fetched successfully",
                 data={
-                    "countries": countries,
-                    "cities": cities,
+                    "filters": {
+                        "countries": countries,
+                        "cities": cities,
+                        "categories": category_list,
+                    },
                     "results": serializer.data,
                     "pagination": {
                         "count": paginator.page.paginator.count,
@@ -99,8 +111,8 @@ class ServiceCreateAPIView(APIView):
             subscription = Subscription.objects.filter(
                 user=request.user,
                 is_active=True,
-                ).filter(
-                Q(end_date__isnull=True) | Q(end_date__gt=timezone.now())  # ← null হলেও pass
+            ).filter(
+                Q(end_date__isnull=True) | Q(end_date__gt=timezone.now())
             ).select_related("plan").first()
 
             if not subscription:
@@ -109,20 +121,27 @@ class ServiceCreateAPIView(APIView):
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            plan                 = subscription.plan
-            current_listings     = Service.objects.filter(user=request.user).count()
-            requested_categories = request.data.get("category", [])
-            requested_locations  = request.data.get("locations", [])
-            requested_images     = request.data.get("images", [])
+            plan             = subscription.plan
+            current_listings = Service.objects.filter(user=request.user).count()
+
+            if current_listings >= plan.max_listings:
+                existing_service = Service.objects.filter(user=request.user).first()
+                return failure_response(
+                    message=f"Your {plan.plan_name} plan allows maximum {plan.max_listings} listing(s). Please update your existing service.",
+                    error={"service_id": existing_service.id if existing_service else None},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            requested_subcategories = request.data.get("subcategory", [])
+            requested_cities        = request.data.get("city", [])  # ✅ city wise
+            requested_images        = request.data.get("images", [])
 
             errors = {}
-            if current_listings >= plan.max_listings:
-                errors["listings"] = f"Your {plan.plan_name} plan allows maximum {plan.max_listings} listing(s)."
-            if len(requested_categories) > plan.max_categories:
-                errors["category"] = f"Your {plan.plan_name} plan allows maximum {plan.max_categories} category(s)."
-            if len(requested_locations) > plan.max_locations:
-                errors["locations"] = f"Your {plan.plan_name} plan allows maximum {plan.max_locations} location(s)."
-            if len(requested_images) > plan.max_images:
+            if requested_subcategories and len(requested_subcategories) > plan.max_sub_categories:
+                errors["subcategory"] = f"Your {plan.plan_name} plan allows maximum {plan.max_sub_categories} subcategory(s)."
+            if requested_cities and len(requested_cities) > plan.max_locations:  # ✅ city count
+                errors["city"] = f"Your {plan.plan_name} plan allows maximum {plan.max_locations} city(s)."
+            if requested_images and len(requested_images) > plan.max_images:
                 errors["images"] = f"Your {plan.plan_name} plan allows maximum {plan.max_images} image(s)."
 
             if errors:
@@ -152,19 +171,22 @@ class ServiceCreateAPIView(APIView):
                 message="Failed to create service",
                 error=str(e),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )    
-            
-            
+            )        
+                     
 class ServiceDetailAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, id):
         try:
             service = Service.objects.select_related(
-                "user", "user__current_plan"
+                "user",
+                "user__current_plan",
+                "user__current_plan__plan"
             ).prefetch_related(
                 "category",
-                "locations",
+                "subcategory",        # ✅
+                "city",               # ✅
+                "country",            # ✅
                 "prices",
                 "user__social_media",
             ).get(id=id)
@@ -188,86 +210,156 @@ class ServiceDetailAPIView(APIView):
                 message="Failed to fetch service",
                 error=str(e),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )  
-            
+            )
 
+class CategoryAPIView(APIView):
+    permission_classes = [AllowAny]
 
-class ServiceDetailUpdateAPIView(APIView):
-    permission_classes = [IsAuthenticated]  
-    def get_object(self, id):
-        return Service.objects.get(id=id)   
-     
-    def put(self, request, id):
+    def get(self, request, id=None):
         try:
-            service = self.get_object(id)
+            # Single category
+            if id:
+                category = Category.objects.prefetch_related(
+                    "subcategories"
+                ).get(id=id)
 
-            # 🔒 1. Ownership check
-            if service.user != request.user:
-                return failure_response(
-                    "You can only update your own service.",
-                    status=status.HTTP_403_FORBIDDEN
+                serializer = CategorySerializer(category)
+
+                return success_response(
+                    message="Category fetched successfully",
+                    data=serializer.data,
+                    status=status.HTTP_200_OK
                 )
 
-            # 🔒 2. Active subscription check
+            # All categories
+            categories = Category.objects.prefetch_related(
+                "subcategories"
+            ).all().order_by("-created_at")
+
+            serializer = CategorySerializer(categories, many=True)
+
+            return success_response(
+                message="Categories fetched successfully",
+                data=serializer.data,
+                status=status.HTTP_200_OK
+            )
+
+        except Category.DoesNotExist:
+            return failure_response(
+                message="Category not found",
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        except Exception as e:
+            return failure_response(
+                message="Failed to fetch category",
+                error=str(e),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+class CountryAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, id=None):
+        try:
+            # Single country with cities
+            if id:
+                country = Country.objects.prefetch_related("cities").get(id=id)
+                serializer = CountrySerializer(country)
+                return success_response(
+                    message="Country fetched successfully",
+                    data=serializer.data,
+                    status=status.HTTP_200_OK
+                )
+
+            # Search by name
+            search = request.query_params.get("search", "").strip()
+            countries = Country.objects.prefetch_related("cities").order_by("name")
+
+            if search:
+                countries = countries.filter(name__icontains=search)
+
+            data = [
+                {
+                    "id": country.id,
+                    "name": country.name,
+                    "cities": [
+                        {"id": city.id, "name": city.name}
+                        for city in country.cities.all()
+                    ],
+                }
+                for country in countries
+            ]
+
+            return success_response(
+                message="Countries fetched successfully",
+                data=data,
+                status=status.HTTP_200_OK
+            )
+
+        except Country.DoesNotExist:
+            return failure_response(
+                message="Country not found",
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return failure_response(
+                message="Failed to fetch country",
+                error=str(e),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ServiceUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id):
+        try:
+            service = Service.objects.get(id=id, user=request.user)
+
             subscription = Subscription.objects.filter(
                 user=request.user,
                 is_active=True,
-                end_date__gt=timezone.now()
-            ).first()
+            ).filter(
+                Q(end_date__isnull=True) | Q(end_date__gt=timezone.now())
+            ).select_related("plan").first()
 
             if not subscription:
                 return failure_response(
-                    "You need an active subscription to update service.",
+                    message="You need an active subscription to update a service.",
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # 🔒 3. Plan limits check
             plan = subscription.plan
 
-            # Max categories
-            incoming_categories = request.data.get("category", [])
-            if incoming_categories and len(incoming_categories) > plan.max_categories:
+            requested_subcategories = request.data.get("subcategory", [])
+            requested_cities        = request.data.get("city", [])
+            requested_images        = request.data.get("images", [])
+
+            errors = {}
+            if requested_subcategories and len(requested_subcategories) > plan.max_sub_categories:
+                errors["subcategory"] = f"Your {plan.plan_name} plan allows maximum {plan.max_sub_categories} subcategory(s)."
+            if requested_cities and len(requested_cities) > plan.max_locations:
+                errors["city"] = f"Your {plan.plan_name} plan allows maximum {plan.max_locations} city(s)."
+            if requested_images and len(requested_images) > plan.max_images:
+                errors["images"] = f"Your {plan.plan_name} plan allows maximum {plan.max_images} image(s)."
+
+            if errors:
                 return failure_response(
-                    f"Your plan allows max {plan.max_categories} category.",
+                    message="Plan limit exceeded.",
+                    error=errors,
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Max locations
-            incoming_locations = request.data.get("locations", [])
-            if incoming_locations and len(incoming_locations) > plan.max_locations:
-                return failure_response(
-                    f"Your plan allows max {plan.max_locations} location.",
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-            # Max images
-            incoming_images = request.data.get("images", [])
-            if incoming_images and len(incoming_images) > plan.max_images:
-                return failure_response(
-                    f"Your plan allows max {plan.max_images} images.",
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-            # Max videos
-            incoming_videos = request.data.get("videos", [])
-            if incoming_videos and len(incoming_videos) > plan.max_videos:
-                return failure_response(
-                    f"Your plan allows max {plan.max_videos} videos.",
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-            # 🔄 Update
-            serializer = ServiceSerializer(
-                service,
-                data=request.data,
-                partial=True
-            )
-
+            serializer = ServiceSerializer(service, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return success_response(
-                    message="Service updated successfully",
-                    data=serializer.data
+                    message="Service updated successfully.",
+                    data=serializer.data,
+                    status=status.HTTP_200_OK
                 )
 
             return failure_response(
@@ -278,17 +370,17 @@ class ServiceDetailUpdateAPIView(APIView):
 
         except Service.DoesNotExist:
             return failure_response(
-                message="Service not found",
+                message="Service not found.",
                 status=status.HTTP_404_NOT_FOUND
             )
-
         except Exception as e:
             return failure_response(
                 message="Failed to update service",
                 error=str(e),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-  
+    
+    
             
 class PlanListView(APIView):
     
@@ -314,6 +406,17 @@ class CreateCheckoutSession(APIView):
             plan = Plan.objects.get(id=plan_id)
         except Plan.DoesNotExist:
             return failure_response("Invalid plan")
+
+        # Check if user already has an active subscription
+        active_subscription = Subscription.objects.filter(
+            user=request.user,
+            is_active=True,
+            status="active",
+            end_date__gt=now()
+        ).exists()
+
+        if active_subscription:
+            return failure_response("You already have an active subscription.")
 
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
@@ -384,8 +487,8 @@ def stripe_webhook(request):
 
                 item = stripe_sub["items"]["data"][0]
 
-                start_date = datetime.fromtimestamp(item["current_period_start"], tz=timezone.utc)
-                end_date   = datetime.fromtimestamp(item["current_period_end"], tz=timezone.utc)
+                start_date = datetime.fromtimestamp(item["current_period_start"], tz=dt_timezone.utc)
+                end_date   = datetime.fromtimestamp(item["current_period_end"], tz=dt_timezone.utc)
 
                 subscription = Subscription.objects.create(
                     user=user,

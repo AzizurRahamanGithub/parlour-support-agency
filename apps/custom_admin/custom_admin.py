@@ -7,7 +7,7 @@ UNFOLD = {
     "DASHBOARD_TEMPLATE": "dashboard.html",
     "SITE_TITLE": "Admin Dashboard",
     "SITE_HEADER": "Administration",
-    "SITE_URL": "https://puttputtplay.com/",
+    "SITE_URL": "",
     "SITE_SYMBOL": "admin_panel_settings",
     "LOGO": lambda request: static("images/logo.png"),
     "SHOW_HISTORY": True,
@@ -145,7 +145,7 @@ UNFOLD = {
                     {
                         "title": _("Locations"),
                         "icon": "location_on",
-                        "link": "/admin/service/servicelocation/",
+                        "link": "/admin/service/country/",
                     },
                 ],
             },

@@ -298,5 +298,6 @@ CHANNEL_LAYERS = {
 # Static files configuration
 STATIC_URL = '/static/'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-STATICFILES_DIRS = [BASE_DIR / 'static']  # must be a list or tuple
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static'] # must be a list or tuple
 STATIC_ROOT = BASE_DIR / 'staticfiles'  # optional but needed for collectstatic

@@ -24,7 +24,7 @@ from .models import UserProfile, HelpUsImprove, CustomUser
 from rest_framework import viewsets, permissions
 from .serializers import (
     UserRegisterSerializer, LoginSerializer, UserSerializer,
-    ForgotPasswordSerializer, ResetPasswordSerializer, PasswordChangeSerializer, CustomUserAllSerializer, ContactMessageSerializer, HelpUsImproveSerializer, AdminUserSerializer
+    ForgotPasswordSerializer, ResetPasswordSerializer, PasswordChangeSerializer, CustomUserAllSerializer, ContactMessageSerializer, HelpUsImproveSerializer, AdminUserSerializer, OTPVerifySerializer
 )
 from .tokens import email_activation_token
 from rest_framework.authentication import TokenAuthentication
@@ -47,30 +47,70 @@ User = get_user_model()
 
 
 class RegisterAPIView(APIView):
-    permission_classes= [AllowAny]
-    authentication_classes= []
-    
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
     def post(self, request):
-        
         try:
             serializer = UserRegisterSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             user = serializer.save()
-            
-            # Notify admins only
-            notify_admins(
-                title="New User Registered",
-                message=f"{user.full_name or user.username} just signed up."
+
+            return success_response(
+                "OTP generated successfully",
+                data={
+                    "email": user.email,
+                    "is_active": user.is_active,
+                    # "otp": serializer.otp,   # 🔥 OTP RESPONSE HERE
+                    # "message": "Use this OTP to verify your account"
+                    
+                },
+                status=status.HTTP_201_CREATED
             )
-            
-            return success_response("User Registered successfully", data= serializer.data, status=status.HTTP_201_CREATED)
-        
+
         except ValidationError as e:
             return failure_response("Validation Error", error=e.detail)
-        
-        except Exception as e:
-            return failure_response("An error occurred", error= str(e), status= status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        except Exception as e:
+            return failure_response("Error", error=str(e))
+
+class OTPVerifyAPIView(APIView):
+
+    def post(self, request):
+        serializer = OTPVerifySerializer(data=request.data)
+
+        if serializer.is_valid():
+            profile = serializer.validated_data["profile"]
+            user = profile.user
+
+            # ✅ activate user
+            user.email_verified = True
+            user.is_active = True
+            user.save()
+
+            # ✅ clear otp
+            profile.otp = None
+            profile.otp_created_at = None
+            profile.save()
+
+            return Response({
+                "success": True,
+                "status_code": 200,
+                "message": "OTP verified successfully",
+                "data": {
+                    "email": user.email,
+                    "verified": True
+                }
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "success": False,
+            "status_code": status.HTTP_400_BAD_REQUEST,
+            "message": "OTP verification failed",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+        
+        
 
 class DetailSingleProfile(RetrieveAPIView):
     queryset = User.objects.all()
@@ -293,48 +333,56 @@ class CustomRefreshToken(RefreshToken):
         # Add custom claims
         refresh_token.payload['username'] = user.username
         refresh_token.payload['email'] = user.email
-        refresh_token.payload['role'] = user.role
+        refresh_token.payload['category'] = user.category
 
         return refresh_token
 
 
 class LoginView(APIView):
+
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
 
-            refresh = CustomRefreshToken.for_user(user)
-            access_token = str(refresh.access_token)
-            refresh_token = str(refresh)
+        if not serializer.is_valid():
+            first_error = next(iter(serializer.errors.values()))[0]
+            return Response({
+                "success": False,
+                "statusCode": 400,
+                "message": first_error,
+                "error": serializer.errors
+            }, status=400)
 
-            response = Response({
-                'success': True,
-                'statusCode': status.HTTP_200_OK,
-                'message': 'Login successful',
-                'data': {
-                    "user_id": user.id,
-                    'username': user.username,
-                    'role': user.role,
-                    'access': access_token,
-                    'refresh': refresh_token,
-                }
-            })
+        user = serializer.validated_data["user"]
 
-            response.set_cookie('refresh_token', refresh_token,
-                                httponly=True, secure=True)
+        # ✅ Admin approval check
+        if not user.is_active:
+            return Response({
+                "success": False,
+                "statusCode": 403,
+                "message": "Your account is pending admin approval. Please wait.",
+                "data": None
+            }, status=403)
 
-            login(request, user)
-            return response
+        refresh = CustomRefreshToken.for_user(user)
 
-        first_error_message = next(iter(serializer.errors.values()))[0]
+        plan_name = ""
+        if user.current_plan and user.current_plan.plan:
+            plan_name = user.current_plan.plan.plan_name
+
         return Response({
-            'success': False,
-            'statusCode': status.HTTP_400_BAD_REQUEST,
-            'message': first_error_message,
-            'error': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
-
+            "success": True,
+            "statusCode": 200,
+            "message": "Login successful",
+            "data": {
+                "user_id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "category": user.category,
+                "current_plan": plan_name,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            }
+        })
 
 class ProtectedView(APIView):
     permission_classes = [IsAuthenticated]
@@ -710,7 +758,7 @@ class GoogleOauth(APIView):
 
             # Make sure to set the 'is_active' field to True
             user.is_active = True
-            user.role = 'user'
+            user.category = 'user'
 
             try:
                 # Save the user with transaction to ensure consistency
@@ -741,7 +789,7 @@ class GoogleOauth(APIView):
                         "email": user.email,
                         "first_name": user.first_name,
                         "last_name": user.last_name,
-                        "role": user.role,
+                        "category": user.category,
                     },
                     "access": access_token,
                     "refresh": refresh_token,

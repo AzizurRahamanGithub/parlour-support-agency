@@ -4,7 +4,7 @@ from .views import (
      LoginView, ProtectedView,
     LogoutView, GetNewAccessTokenView, ForgotPasswordView, PasswordChangeView, ResetPasswordView, ProfileView,  GoogleOauth, ResendVerificationEmailAPIView, DetailSingleProfile, AdminUserView
 )
-from .views import   ResendOTPAPIView, UserAPIView, UserDetailAPIView, RegisterAPIView,ContactMessageView, HelpUsImproveView
+from .views import   ResendOTPAPIView, UserAPIView, UserDetailAPIView, RegisterAPIView,ContactMessageView, HelpUsImproveView, OTPVerifyAPIView
 
 router = DefaultRouter()
 router.register(r'help-us-improve', HelpUsImproveView, basename='improving'),
@@ -17,7 +17,8 @@ urlpatterns = [
      path('test-mail/', TestMailView.as_view(), name='test-mail'),
      # --- register
     path("register/", RegisterAPIView.as_view(), name="register"),
-    path("resend-otp/", ResendOTPAPIView.as_view(), name="resend-otp"),     
+    path("resend-otp/", ResendOTPAPIView.as_view(), name="resend-otp"),   
+    path("verify-otp/", OTPVerifyAPIView.as_view()),  
      
      # --- login and logout
     path('login/', LoginView.as_view(), name='login'),

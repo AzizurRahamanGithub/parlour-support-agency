@@ -1,13 +1,13 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.db import models
-from .models import Service, ServicePrice, Subscription
+from .models import Service, ServicePrice, Subscription, City, Country
 from apps.auths.models import SocialMedia
 from .forms import MultipleImagesForm
 from django.contrib.auth.admin import UserAdmin
 from unfold.admin import ModelAdmin
 from .models import Category, ServiceLocation, Plan, SubCategory
-
+from apps.auths.models import CustomUser
 
 class ServicePriceInline(admin.TabularInline):
     model = ServicePrice
@@ -19,6 +19,10 @@ class SocialMediaInline(admin.TabularInline):
 
 class SubCategoryInline(admin.TabularInline):
     model = SubCategory
+    extra = 1    
+
+class CityInline(admin.TabularInline):
+    model = City
     extra = 1    
 
 
@@ -86,25 +90,55 @@ class ServiceAdmin(ModelAdmin):
     # LIMIT VALIDATION
     # -------------------------
     def save_model(self, request, obj, form, change):
-        sub = Subscription.objects.filter(user=obj.user, is_active=True).first()
+        from apps.file_uploader.upload_utils import upload_file_to_digital_ocean, delete_file_from_digital_ocean
 
-        if sub:
-            max_images = sub.plan.max_images
+        image_fields = {
+            'upload_images_profile': ('image', 'user-profile'),
+            'upload_images_licence': ('licence_image', 'user-licence'),
+            'upload_images_id': ('id_image', 'user-id'),
+            'upload_images_id_with': ('id_with_image', 'user-id-with-face'),
+        }
 
-            if len(obj.images or []) > max_images:
-                raise Exception("❌ Image limit exceeded")
+        for field_key, (model_field, folder) in image_fields.items():
+            # Delete selected
+            to_delete = request.POST.getlist(f"delete_{model_field}")
+            if to_delete:
+                for url in to_delete:
+                    try:
+                        delete_file_from_digital_ocean(url)
+                    except Exception:
+                        pass
+                current = getattr(obj, model_field, []) or []
+                setattr(obj, model_field, [u for u in current if u not in to_delete])
+
+            # Upload new files
+            new_files = request.FILES.getlist(field_key)
+            if new_files:
+                all_urls = list(getattr(obj, model_field, []) or [])
+                for f in new_files:
+                    url = upload_file_to_digital_ocean(f, folder=folder)
+                    all_urls.append(url)
+                setattr(obj, model_field, list(dict.fromkeys(all_urls)))
+
+            # ✅ new_files নেই, to_delete নেই — DB থেকে পুরনো value রাখো
+            elif not to_delete:
+                db_obj = CustomUser.objects.filter(pk=obj.pk).first()
+                if db_obj:
+                    current_val = getattr(db_obj, model_field, []) or []
+                    setattr(obj, model_field, current_val)
 
         super().save_model(request, obj, form, change)
         
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(ModelAdmin):
     inlines = [SubCategoryInline]
     list_display = ["name", "created_at"]
     
-    
-    
-    
-admin.site.register(ServiceLocation)        
+@admin.register(Country)
+class CountryAdmin(ModelAdmin):
+    inlines = [CityInline]
+    list_display = ["name", "created_at"]
+         
 @admin.register(Plan)
 class PlanAdmin(ModelAdmin):
 

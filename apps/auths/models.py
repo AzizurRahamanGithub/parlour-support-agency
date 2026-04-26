@@ -11,11 +11,12 @@ from import_export.admin import ImportExportActionModelAdmin
 from apps.service.models import Subscription
 now = timezone.now()
 from django.contrib import admin
+import random
+from apps.service.models import Category
 
-
-class Role(models.TextChoices):
-    ADMIN = 'admin', 'Admin'
-    LEARNER = 'user', 'User'
+class FixedCategory(models.TextChoices):
+    ADMIN = 'bliss', 'BLISS'
+    LEARNER = 'beauty', 'BEAUTY'
 
 
 class SocialMedia(models.Model):
@@ -50,16 +51,19 @@ class SocialMedia(models.Model):
 
 class CustomUser(AbstractUser):
     current_plan = models.ForeignKey(Subscription, null=True, blank=True, on_delete=models.SET_NULL)
+    email_verified = models.BooleanField(default=False)
     email = models.EmailField(unique=True)
     is_active= models.BooleanField(default=True)
-    role = models.CharField(max_length=10, choices=Role.choices,
-                            default=Role.LEARNER, null=True, blank=True)
+    category = models.CharField(max_length=10, choices=FixedCategory.choices, null=True, blank=True)
     address = models.CharField(max_length=255, null=True, blank=True)
     designation = models.CharField(
         max_length=15, null=True, blank=True)
     phone_number = models.CharField(
         max_length=15, null=True, blank=True)
-    photo = models.URLField(null=True, blank=True)
+    image = models.JSONField(default=list, blank=True)
+    licence_image = models.JSONField(default=list, blank=True)
+    id_image = models.JSONField(default=list, blank=True)
+    id_with_image = models.JSONField(default=list, blank=True)
     full_name = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     
@@ -76,7 +80,6 @@ class CustomUser(AbstractUser):
         indexes = [
             models.Index(fields=['email'], name='email_idx'),
             models.Index(fields=['username'], name='username_idx'),
-            models.Index(fields=['role'], name='role_idx'),
             models.Index(fields=['created_at'], name='created_at_idx'),
         ]
 
@@ -85,29 +88,46 @@ class CustomUserAdmin(ImportExportActionModelAdmin):
     list_display = ('username', 'email', 'role', 'is_active', 'created_at')
     search_fields = ('username', 'email', 'full_name')
 
+
 class UserProfile(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    user = models.OneToOneField("CustomUser", on_delete=models.CASCADE)
+    
     otp = models.CharField(max_length=6, null=True, blank=True)
-    otp_created_at = models.DateTimeField(auto_now_add=True)
+    otp_created_at = models.DateTimeField(null=True, blank=True)
+
     reset_token = models.CharField(max_length=100, null=True, blank=True)
     reset_token_expires = models.DateTimeField(null=True, blank=True)
 
+    # 🔥 OTP generate
+    def generate_otp(self):
+        return str(random.randint(100000, 999999))
+
+    # 🔥 set OTP
+    def set_otp(self):
+        self.otp = self.generate_otp()
+        self.otp_created_at = timezone.now()
+        self.save()
+        return self.otp
+
+    # 🔥 OTP expiry check
     def is_otp_expired(self):
         if self.otp_created_at:
             return timezone.now() > self.otp_created_at + timedelta(minutes=10)
         return True
 
+    # 🔥 reset token generate
+    def generate_reset_token(self):
+        self.reset_token = ''.join(
+            random.choices(string.ascii_uppercase + string.digits, k=32)
+        )
+        self.reset_token_expires = timezone.now() + timedelta(minutes=5)
+        self.save()
+        return self.reset_token
+
     def is_reset_token_expired(self):
         if self.reset_token_expires:
             return timezone.now() > self.reset_token_expires
         return True
-
-    def generate_reset_token(self):
-        self.reset_token = ''.join(random.choices(
-            string.ascii_uppercase + string.digits, k=32))
-        self.reset_token_expires = timezone.now() + timedelta(minutes=5)
-        self.save()
-        return self.reset_token
 
     def __str__(self):
         return f"Profile of {self.user.email}"
