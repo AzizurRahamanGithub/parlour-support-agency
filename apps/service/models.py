@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 # Create your models here.
-
+import stripe
 
 class Category(models.Model):
     name = models.CharField(max_length=200, blank=True, null=True)
@@ -157,3 +157,45 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.plan}"
+    
+    
+class AddOn(models.Model):
+    ADDON_TYPE_CHOICES = [
+        ("front_page_listing", "Front Page Listing"),
+        ("top_profile_placement", "Top Profile Placement"),
+        ("additional_location", "Additional Location"),
+        ("additional_categories", "Additional Categories"),
+        ("additional_bumps", "2 Additional Bumps"),
+    ]
+
+    name = models.CharField(max_length=100)
+    addon_type = models.CharField(max_length=50, choices=ADDON_TYPE_CHOICES, unique=True)
+    stripe_price_id = models.CharField(max_length=100)
+    price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)  # auto fill হবে
+    extra_limit = models.IntegerField(default=1)  # additional location/category কতটা extra পাবে
+
+    def save(self, *args, **kwargs):
+        # stripe_price_id থেকে price auto fetch
+        if self.stripe_price_id and not self.price:
+            try:
+                stripe_price = stripe.Price.retrieve(self.stripe_price_id)
+                self.price = stripe_price["unit_amount"] / 100  # cents to dollars
+            except Exception as e:
+                print("Stripe price fetch error:", e)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name    
+    
+    
+class UserAddOn(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="addons")
+    addon = models.ForeignKey(AddOn, on_delete=models.CASCADE)
+    stripe_payment_intent_id = models.CharField(max_length=100, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    start_date = models.DateTimeField(blank=True, null=True)
+    end_date = models.DateTimeField(blank=True, null=True)
+    purchased_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.addon.name}"    

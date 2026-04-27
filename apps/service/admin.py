@@ -6,7 +6,7 @@ from apps.auths.models import SocialMedia
 from .forms import MultipleImagesForm
 from django.contrib.auth.admin import UserAdmin
 from unfold.admin import ModelAdmin
-from .models import Category, ServiceLocation, Plan, SubCategory
+from .models import Category, ServiceLocation, Plan, SubCategory, AddOn, UserAddOn
 from apps.auths.models import CustomUser
 
 class ServicePriceInline(admin.TabularInline):
@@ -138,7 +138,26 @@ class CategoryAdmin(ModelAdmin):
 class CountryAdmin(ModelAdmin):
     inlines = [CityInline]
     list_display = ["name", "created_at"]
-         
+    
+    
+    
+@admin.register(AddOn)
+class AddOnAdmin(ModelAdmin):
+    list_display = ['name', 'id', 'addon_type', 'price', 'extra_limit', 'stripe_price_id']
+    search_fields = ['name', 'addon_type']
+    list_editable = ['price', 'extra_limit']
+    readonly_fields = ['price']
+
+
+@admin.register(UserAddOn)
+class UserAddOnAdmin(ModelAdmin):
+    list_display = ['addon', 'id', 'user', 'is_active', 'start_date', 'end_date', 'purchased_at']
+    search_fields = ['user__email', 'addon__name']
+    list_filter = ['is_active', 'addon__addon_type']
+    list_editable = ['is_active']
+    readonly_fields = ['purchased_at']      
+    
+       
 @admin.register(Plan)
 class PlanAdmin(ModelAdmin):
 

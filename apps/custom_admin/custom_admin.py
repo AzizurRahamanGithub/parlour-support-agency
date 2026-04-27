@@ -165,8 +165,18 @@ UNFOLD = {
                         "icon": "card_membership",
                         "link": "/admin/service/subscription/",
                     },
+                    {
+                        "title": _("Add-Ons"),
+                        "icon": "add_circle",
+                        "link": "/admin/service/addon/",
+                    },
+                    {
+                        "title": _("User Add-Ons"),
+                        "icon": "manage_accounts",
+                        "link": "/admin/service/useraddon/",
+                    },
                 ]
-           }
+            }
 
         ],
     },
