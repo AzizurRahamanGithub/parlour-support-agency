@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Count
 from rest_framework import status
 from apps.core.response import success_response, failure_response
-from .models import Service, Subscription, Plan, Category, Country, City
+from .models import Service, Subscription, Plan, Category, Country, City, AddOn, UserAddOn
 from apps.core.pagination import BasePaginatedViewSet, CustomPagination
 from .serializers import ServiceSerializer, UserSerializer, PlanSerializer, ServiceLocation, CategorySerializer, CountrySerializer, CitySerializer
 from apps.auths.models import SocialMedia, CustomUser
@@ -19,6 +19,8 @@ from django.utils import timezone
 from datetime import datetime, timezone as dt_timezone
 from django.utils.timezone import now
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
 
 
 class UserListAPIView(APIView):
@@ -338,11 +340,29 @@ class ServiceUpdateAPIView(APIView):
             requested_cities        = request.data.get("city", [])
             requested_images        = request.data.get("images", [])
 
+            # Add-On check
+            has_location_addon = UserAddOn.objects.filter(
+                user=request.user,
+                addon__addon_type="additional_location",
+                is_active=True,
+                end_date__gt=timezone.now()
+            ).first()
+
+            has_category_addon = UserAddOn.objects.filter(
+                user=request.user,
+                addon__addon_type="additional_categories",
+                is_active=True,
+                end_date__gt=timezone.now()
+            ).first()
+
+            max_locations = plan.max_locations + (has_location_addon.addon.extra_limit if has_location_addon else 0)
+            max_sub_categories = plan.max_sub_categories + (has_category_addon.addon.extra_limit if has_category_addon else 0)
+
             errors = {}
-            if requested_subcategories and len(requested_subcategories) > plan.max_sub_categories:
-                errors["subcategory"] = f"Your {plan.plan_name} plan allows maximum {plan.max_sub_categories} subcategory(s)."
-            if requested_cities and len(requested_cities) > plan.max_locations:
-                errors["city"] = f"Your {plan.plan_name} plan allows maximum {plan.max_locations} city(s)."
+            if requested_subcategories and len(requested_subcategories) > max_sub_categories:
+                errors["subcategory"] = f"Your plan allows maximum {max_sub_categories} subcategory(s)."
+            if requested_cities and len(requested_cities) > max_locations:
+                errors["city"] = f"Your plan allows maximum {max_locations} location(s)."
             if requested_images and len(requested_images) > plan.max_images:
                 errors["images"] = f"Your {plan.plan_name} plan allows maximum {plan.max_images} image(s)."
 
@@ -378,8 +398,7 @@ class ServiceUpdateAPIView(APIView):
                 message="Failed to update service",
                 error=str(e),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
+            )  
     
             
 class PlanListView(APIView):
@@ -436,7 +455,79 @@ class CreateCheckoutSession(APIView):
             "Checkout created",
             {"checkout_url": session.url}
         )
+       
+       
         
+class PurchaseAddOnView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        addon_id = request.data.get("addon_id")
+
+        try:
+            addon = AddOn.objects.get(id=addon_id)
+        except AddOn.DoesNotExist:
+            return failure_response("Invalid add-on.")
+
+        # Subscription active check
+        subscription = Subscription.objects.filter(
+            user=request.user,
+            is_active=True,
+            status="active",
+            end_date__gt=now()
+        ).select_related("plan").first()
+
+        if not subscription:
+            return failure_response("You need an active subscription to purchase add-ons.")
+
+        # Plan এ already আছে কিনা check
+        plan = subscription.plan
+        if addon.addon_type == "front_page_listing" and plan.is_front_page:
+            return failure_response("Your current plan already includes Front Page Listing.")
+        if addon.addon_type == "top_profile_placement" and plan.is_top_profile:
+            return failure_response("Your current plan already includes Top Profile Placement.")
+
+        # Already active addon check
+        already_active = UserAddOn.objects.filter(
+            user=request.user,
+            addon=addon,
+            is_active=True,
+            end_date__gt=now()
+        ).exists()
+
+        if already_active:
+            return failure_response(f"You already have '{addon.name}' active.")
+
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="subscription",
+            customer_email=request.user.email,
+            line_items=[
+                {
+                    "price": addon.stripe_price_id,
+                    "quantity": 1,
+                }
+            ],
+            success_url="http://localhost:3000/success",
+            cancel_url="http://localhost:3000/cancel",
+            metadata={
+                "type": "addon",
+                "user_id": str(request.user.id),
+                "addon_id": str(addon.id),
+            },
+            subscription_data={
+                "metadata": {
+                    "type": "addon",
+                    "user_id": str(request.user.id),
+                    "addon_id": str(addon.id),
+                }
+            }
+        )
+
+        return success_response(
+            "Checkout created",
+            {"checkout_url": session.url}
+        )  
         
 @csrf_exempt
 def stripe_webhook(request):
@@ -459,55 +550,103 @@ def stripe_webhook(request):
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
+
+        # price_id দিয়ে addon/plan distinguish করো
         try:
-            email = session["customer_email"] or session["customer_details"]["email"]
-            stripe_sub_id = session["subscription"]
-            stripe_customer_id = session["customer"]
-
-            if not email:
-                print("❌ No email in session")
-                return HttpResponse(status=200)
-
-            user = CustomUser.objects.filter(email=email).first()
-            if not user:
-                print("❌ User not found:", email)
-                return HttpResponse(status=200)
-
             line_items = stripe.checkout.Session.list_line_items(session["id"])
             price_id = line_items.data[0].price.id
-
-            plan = Plan.objects.filter(stripe_price_id=price_id).first()
-            if not plan:
-                print("❌ Plan not found for price_id:", price_id)
-                return HttpResponse(status=200)
-
-            if not Subscription.objects.filter(stripe_subscription_id=stripe_sub_id).exists():
-                
-                stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
-
-                item = stripe_sub["items"]["data"][0]
-
-                start_date = datetime.fromtimestamp(item["current_period_start"], tz=dt_timezone.utc)
-                end_date   = datetime.fromtimestamp(item["current_period_end"], tz=dt_timezone.utc)
-
-                subscription = Subscription.objects.create(
-                    user=user,
-                    plan=plan,
-                    stripe_customer_id=stripe_customer_id,
-                    stripe_subscription_id=stripe_sub_id,
-                    is_active=True,
-                    status="active",
-                    start_date=start_date, 
-                    end_date=end_date,      
-                )
-                user.current_plan = subscription
-                user.save()
-                print("🎉 SUBSCRIPTION CREATED for", email)
-
         except Exception as e:
-            print("🔥 INTERNAL ERROR:", e)
-            import traceback
-            traceback.print_exc()
-            return HttpResponse(status=500)
+            print("🔥 LINE ITEMS ERROR:", e)
+            return HttpResponse(status=200)
+
+        addon = AddOn.objects.filter(stripe_price_id=price_id).first()
+
+        if addon:
+            # ✅ Add-On payment
+            try:
+                email = session["customer_email"] or session["customer_details"]["email"]
+                stripe_sub_id = session["subscription"]
+
+                user = CustomUser.objects.filter(email=email).first()
+                if not user:
+                    print("❌ User not found:", email)
+                    return HttpResponse(status=200)
+
+                stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
+                item = stripe_sub["items"]["data"][0]
+                start_date = datetime.fromtimestamp(item["current_period_start"], tz=dt_timezone.utc)
+                end_date = datetime.fromtimestamp(item["current_period_end"], tz=dt_timezone.utc)
+
+                obj, created = UserAddOn.objects.get_or_create(
+                    user=user,
+                    addon=addon,
+                    defaults={
+                        "is_active": True,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    }
+                )
+
+                if not created:
+                    obj.is_active = True
+                    obj.start_date = start_date
+                    obj.end_date = end_date
+                    obj.save()
+
+                print(f"🎉 ADD-ON ACTIVATED: {addon.name} for {user.email}")
+
+            except Exception as e:
+                print("🔥 ADD-ON ERROR:", e)
+                import traceback
+                traceback.print_exc()
+                return HttpResponse(status=500)
+
+        else:
+            # ✅ Subscription payment
+            try:
+                email = session["customer_email"] or session["customer_details"]["email"]
+                stripe_sub_id = session["subscription"]
+                stripe_customer_id = session["customer"]
+
+                if not email:
+                    print("❌ No email in session")
+                    return HttpResponse(status=200)
+
+                user = CustomUser.objects.filter(email=email).first()
+                if not user:
+                    print("❌ User not found:", email)
+                    return HttpResponse(status=200)
+
+                plan = Plan.objects.filter(stripe_price_id=price_id).first()
+                if not plan:
+                    print("❌ Plan not found for price_id:", price_id)
+                    return HttpResponse(status=200)
+
+                if not Subscription.objects.filter(stripe_subscription_id=stripe_sub_id).exists():
+                    stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
+                    item = stripe_sub["items"]["data"][0]
+                    start_date = datetime.fromtimestamp(item["current_period_start"], tz=dt_timezone.utc)
+                    end_date = datetime.fromtimestamp(item["current_period_end"], tz=dt_timezone.utc)
+
+                    subscription = Subscription.objects.create(
+                        user=user,
+                        plan=plan,
+                        stripe_customer_id=stripe_customer_id,
+                        stripe_subscription_id=stripe_sub_id,
+                        is_active=True,
+                        status="active",
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                    user.current_plan = subscription
+                    user.save()
+                    print("🎉 SUBSCRIPTION CREATED for", email)
+
+            except Exception as e:
+                print("🔥 INTERNAL ERROR:", e)
+                import traceback
+                traceback.print_exc()
+                return HttpResponse(status=500)
 
     return HttpResponse(status=200)
+
