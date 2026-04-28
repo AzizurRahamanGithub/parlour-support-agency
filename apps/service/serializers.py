@@ -202,6 +202,20 @@ class ServiceSerializer(serializers.ModelSerializer):
             "about", "images", "videos", "is_published", "created_at",
         ]
         
+    def _set_categories_from_subcategories(self, service, subcategories):
+        categories = set()
+        for sub in subcategories:
+            if sub.category:
+                categories.add(sub.category)
+        service.category.set(list(categories))
+
+    def _set_countries_from_cities(self, service, cities):
+        countries = set()
+        for city in cities:
+            if city.country:
+                countries.add(city.country)
+        service.country.set(list(countries))    
+        
     def get_category_details(self, obj):
         return [
             {"id": sub.category.id, "name": sub.category.name}
