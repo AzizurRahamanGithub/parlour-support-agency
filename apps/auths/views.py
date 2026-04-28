@@ -57,7 +57,7 @@ class RegisterAPIView(APIView):
             user = serializer.save()
 
             return success_response(
-                "OTP generated successfully",
+                "Register successfully",
                 data={
                     "email": user.email,
                     "is_active": user.is_active,
