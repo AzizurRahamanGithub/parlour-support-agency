@@ -173,24 +173,27 @@ class UserSerializer(serializers.ModelSerializer):
         services = obj.service_set.filter(is_published=True)
         return MiniServiceSerializer(services, many=True).data
 
+
+
+
+
 class ServiceSerializer(serializers.ModelSerializer):
     # ── Write ─────────────────────────────────────────────
-    subcategory  = serializers.PrimaryKeyRelatedField(
+    subcategory = serializers.PrimaryKeyRelatedField(
         queryset=SubCategory.objects.all(), many=True, write_only=True, required=False
     )
     city = serializers.PrimaryKeyRelatedField(
         queryset=City.objects.all(), many=True, write_only=True, required=False
     )
     service_details = ServicePriceSerializer(many=True, write_only=True, required=False)
-    social_media = SocialMediaSerializer(many=True, write_only=True, required=False) 
+    social_media = SocialMediaSerializer(many=True, write_only=True, required=False)
     phone_number = serializers.CharField(write_only=True, required=False)
 
     # ── Read only ─────────────────────────────────────────
-    category_details     = serializers.SerializerMethodField(read_only=True)
-    location_details     = serializers.SerializerMethodField(read_only=True)
-    price_details        = ServicePriceSerializer(source="prices", many=True, read_only=True)
-    user_details         = UserDetailesSerializer(source="user", read_only=True)
-    social_media_details = SocialMediaSerializer(source="social_media", many=True, read_only=True)
+    category_details = serializers.SerializerMethodField(read_only=True)
+    location_details = serializers.SerializerMethodField(read_only=True)
+    price_details    = ServicePriceSerializer(source="prices", many=True, read_only=True)
+    user_details     = UserDetailesSerializer(source="user", read_only=True)
 
     class Meta:
         model = Service
@@ -198,10 +201,10 @@ class ServiceSerializer(serializers.ModelSerializer):
             "id",
             "subcategory", "city", "service_details", "phone_number", "social_media",
             "user_details", "category_details",
-            "location_details", "price_details", "social_media_details",
+            "location_details", "price_details",
             "about", "images", "videos", "is_published", "created_at",
         ]
-        
+
     def _set_categories_from_subcategories(self, service, subcategories):
         categories = set()
         for sub in subcategories:
@@ -214,25 +217,46 @@ class ServiceSerializer(serializers.ModelSerializer):
         for city in cities:
             if city.country:
                 countries.add(city.country)
-        service.country.set(list(countries))    
-        
+        service.country.set(list(countries))
+
     def get_category_details(self, obj):
-        return [
-            {"id": sub.category.id, "name": sub.category.name}
-            for sub in obj.subcategory.select_related("category").all()
-        ]
+        category_map = {}
+        for sub in obj.subcategory.select_related("category").all():
+            cat_id = sub.category.id
+            if cat_id not in category_map:
+                category_map[cat_id] = {
+                    "id": cat_id,
+                    "name": sub.category.name,
+                    "subcategories": []
+                }
+            category_map[cat_id]["subcategories"].append({
+                "id": sub.id,
+                "name": sub.name
+            })
+        return list(category_map.values())
 
     def get_location_details(self, obj):
-        return [
-            {"id": city.id, "name": city.name}
-            for city in obj.city.all()
-        ]    
+        country_map = {}
+        for city in obj.city.select_related("country").all():
+            country_id = city.country.id
+            if country_id not in country_map:
+                country_map[country_id] = {
+                    "id": country_id,
+                    "name": city.country.name,
+                    "cities": []
+                }
+            country_map[country_id]["cities"].append({
+                "id": city.id,
+                "name": city.name
+            })
+        return list(country_map.values())
 
     def create(self, validated_data):
-        subcategories  = validated_data.pop("subcategory", [])
-        cities         = validated_data.pop("city", [])
-        prices_data    = validated_data.pop("service_details", [])
-        social_medias  = validated_data.pop("social_media", [])  # ✅
+        subcategories = validated_data.pop("subcategory", [])
+        cities        = validated_data.pop("city", [])
+        prices_data   = validated_data.pop("service_details", [])
+        social_medias = validated_data.pop("social_media", [])
+        phone_number  = validated_data.pop("phone_number", None)
 
         service = Service.objects.create(**validated_data)
 
@@ -240,13 +264,11 @@ class ServiceSerializer(serializers.ModelSerializer):
         self._set_categories_from_subcategories(service, subcategories)
         service.city.set(cities)
         self._set_countries_from_cities(service, cities)
-        
-        phone_number = validated_data.pop("phone_number", None)
+
         if phone_number:
             service.user.phone_number = phone_number
             service.user.save(update_fields=["phone_number"])
 
-        # ✅ Create social media and link to service
         for sm_data in social_medias:
             social = SocialMedia.objects.create(user=service.user, **sm_data)
             service.social_media.add(social)
@@ -257,10 +279,11 @@ class ServiceSerializer(serializers.ModelSerializer):
         return service
 
     def update(self, instance, validated_data):
-        subcategories  = validated_data.pop("subcategory", None)
-        cities         = validated_data.pop("city", None)
-        prices_data    = validated_data.pop("service_details", None)
-        social_medias  = validated_data.pop("social_media", None)  # ✅
+        subcategories = validated_data.pop("subcategory", None)
+        cities        = validated_data.pop("city", None)
+        prices_data   = validated_data.pop("service_details", None)
+        social_medias = validated_data.pop("social_media", None)
+        phone_number  = validated_data.pop("phone_number", None)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -269,17 +292,15 @@ class ServiceSerializer(serializers.ModelSerializer):
         if subcategories is not None:
             instance.subcategory.set(subcategories)
             self._set_categories_from_subcategories(instance, subcategories)
-            
-        phone_number = validated_data.pop("phone_number", None)
-        if phone_number:
-            instance.user.phone_number = phone_number
-            instance.user.save(update_fields=["phone_number"])    
 
         if cities is not None:
             instance.city.set(cities)
             self._set_countries_from_cities(instance, cities)
 
-        # ✅ Delete old and create new social media
+        if phone_number:
+            instance.user.phone_number = phone_number
+            instance.user.save(update_fields=["phone_number"])
+
         if social_medias is not None:
             instance.social_media.all().delete()
             for sm_data in social_medias:
@@ -292,3 +313,7 @@ class ServiceSerializer(serializers.ModelSerializer):
                 ServicePrice.objects.create(service=instance, **price)
 
         return instance
+    
+    
+    
+    
