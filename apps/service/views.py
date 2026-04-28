@@ -4,7 +4,7 @@ from django.db.models import Count
 from rest_framework import status
 from apps.core.response import success_response, failure_response
 from .models import Service, Subscription, Plan, Category, Country, City, AddOn, UserAddOn
-from apps.core.pagination import BasePaginatedViewSet, CustomPagination
+from apps.core.pagination import CustomPagination
 from .serializers import ServiceSerializer, UserSerializer, PlanSerializer, ServiceLocation, CategorySerializer, CountrySerializer, CitySerializer
 from apps.auths.models import SocialMedia, CustomUser
 from django.utils import timezone
@@ -62,7 +62,6 @@ class UserListAPIView(APIView):
             countries = list(Country.objects.values_list("name", flat=True).order_by("name"))
             cities    = list(City.objects.values_list("name", flat=True).order_by("name"))
 
-            # category + subcategory list
             category_list = []
             for cat in Category.objects.prefetch_related('subcategories').all():
                 category_list.append({
@@ -79,6 +78,8 @@ class UserListAPIView(APIView):
             paginated_queryset = paginator.paginate_queryset(queryset, request)
             serializer = UserSerializer(paginated_queryset, many=True)
 
+            paginated_data = paginator.get_paginated_data(serializer.data)
+
             return success_response(
                 message="User list fetched successfully",
                 data={
@@ -87,13 +88,7 @@ class UserListAPIView(APIView):
                         "cities": cities,
                         "categories": category_list,
                     },
-                    "results": serializer.data,
-                    "pagination": {
-                        "count": paginator.page.paginator.count,
-                        "page_size": paginator.get_page_size(request),
-                        "next": paginator.get_next_link(),
-                        "previous": paginator.get_previous_link(),
-                    }
+                    **paginated_data
                 },
                 status=status.HTTP_200_OK
             )
