@@ -38,7 +38,8 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if CustomUser.objects.filter(email=data["email"]).exists():
             raise serializers.ValidationError({"email": "Email already exists."})
-
+        return data
+    
     def create(self, validated_data):
         full_name = validated_data.pop("full_name")
         password = validated_data.pop("password")
