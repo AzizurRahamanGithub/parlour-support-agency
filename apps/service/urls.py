@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import UserListAPIView, ServiceDetailAPIView, CreateCheckoutSession, stripe_webhook, PlanListView, ServiceCreateAPIView, ServiceUpdateAPIView, CategoryAPIView, CountryAPIView, PurchaseAddOnView
+from .views import UserListAPIView, ServiceDetailAPIView, CreateCheckoutSession, stripe_webhook, PlanListView, ServiceCreateAPIView, ServiceUpdateAPIView, CategoryAPIView, CountryAPIView, PurchaseAddOnView, UpgradeSubscriptionView, CancelSubscriptionView
 
 
 # URL Patterns
@@ -13,6 +13,8 @@ urlpatterns = [
     path('list/', UserListAPIView.as_view(), name='user-list'),
     path('plans/', PlanListView.as_view(), name='plan-list'),
     path('create/', ServiceCreateAPIView.as_view(), name='service-create'),
+    path("subscription/upgrade/", UpgradeSubscriptionView.as_view(), name="service-upgrade"),
+    path("subscription/cancel/", CancelSubscriptionView.as_view(), name="service-cancel"),
     
     path("create-checkout/", CreateCheckoutSession.as_view()),
     path("addon/purchase/", PurchaseAddOnView.as_view(), name="addon-purchase"),

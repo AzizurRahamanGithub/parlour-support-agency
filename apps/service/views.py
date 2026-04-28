@@ -178,6 +178,95 @@ class ServiceCreateAPIView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )        
 
+
+class CancelSubscriptionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        subscription = Subscription.objects.filter(
+            user=request.user,
+            is_active=True,
+            status="active",
+        ).first()
+
+        if not subscription:
+            return failure_response("You don't have an active subscription.")
+
+        try:
+            # Stripe এ cancel — period শেষে cancel হবে
+            stripe.Subscription.modify(
+                subscription.stripe_subscription_id,
+                cancel_at_period_end=True,
+            )
+
+            return success_response(
+                message="Subscription will be canceled at the end of the billing period.",
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return failure_response(
+                message="Failed to cancel subscription.",
+                error=str(e),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+ 
+class UpgradeSubscriptionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        plan_id = request.data.get("plan_id")
+
+        try:
+            plan = Plan.objects.get(id=plan_id)
+        except Plan.DoesNotExist:
+            return failure_response("Invalid plan.")
+
+        subscription = Subscription.objects.filter(
+            user=request.user,
+            is_active=True,
+            status="active",
+            end_date__gt=now()
+        ).first()
+
+        if not subscription:
+            return failure_response("You don't have an active subscription.")
+
+        if subscription.plan == plan:
+            return failure_response("You are already on this plan.")
+
+        try:
+            # Stripe subscription update
+            stripe_sub = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
+            stripe.Subscription.modify(
+                subscription.stripe_subscription_id,
+                items=[{
+                    "id": stripe_sub["items"]["data"][0]["id"],
+                    "price": plan.stripe_price_id,
+                }],
+                proration_behavior="create_prorations",
+            )
+
+            # DB update — webhook এ হবে automatically
+            # কিন্তু immediately update করতে চাইলে এখানেও করো
+            subscription.plan = plan
+            subscription.save()
+            request.user.current_plan = subscription
+            request.user.save()
+
+            return success_response(
+                message="Subscription upgraded successfully.",
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return failure_response(
+                message="Failed to upgrade subscription.",
+                error=str(e),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            ) 
+ 
                
 class ServiceDetailAPIView(APIView):
     permission_classes = [AllowAny]
