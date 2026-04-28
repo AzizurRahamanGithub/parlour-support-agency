@@ -494,7 +494,6 @@ class ForgotPasswordView(APIView):
         # =========================
         # 🔒 EMAIL SEND (PRODUCTION)
         # =========================
-        """
         subject = "Password Reset OTP"
         body = f"Your OTP is: {otp}. It will expire in 10 minutes."
 
@@ -504,7 +503,6 @@ class ForgotPasswordView(APIView):
             to=[user.email]
         )
         email_message.send()
-        """
 
         # =========================
         # 🚀 DEV RESPONSE
