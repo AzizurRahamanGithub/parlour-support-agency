@@ -26,46 +26,20 @@ DATABASES = {
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 
-# Production allowed hosts (IMPORTANT: Only allow your domains)
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['31.220.60.125', 'localhost', '127.0.0.1']
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',      
-    'http://localhost:3001',      
-    'http://localhost:5173',      
-    'http://localhost:8080',      
-    'http://127.0.0.1:5500',      
-    'http://127.0.0.1:5501',      
-    'http://127.0.0.1:8000',      
-    'http://localhost:8000',      
-    'http://172.252.13.75:7777',  
-    'http://172.252.13.75:6543',  
-    'http://172.252.13.75:6724',  
-    'http://172.252.13.75:8083',  
-    'http://206.162.244.143:6741',
-    'http://127.0.0.1:8000',
-    'http://31.97.99.135:8000',
-    'https://puttputtplay.com',
-    'https://api.puttputtplay.com',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://31.220.60.125:3000',  # frontend
+    'http://31.220.60.125:8001',  # backend
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000',
-    'http://127.0.0.1:5500',
-    'http://127.0.0.1:5501',
-    'http://127.0.0.1:8000',
     'http://localhost:3000',
-    'http://localhost:5173',
-    'http://172.252.13.75:7777',  
-    'http://172.252.13.75:6543',  
-    'http://172.252.13.75:6724',  
-    'http://172.252.13.75:8083',  
-    'http://206.162.244.143:6741',
-    'http://127.0.0.1:8000',
-    'http://31.97.99.135:8000',
-    'https://puttputtplay.com',
-    'https://api.puttputtplay.com',
+    'http://31.220.60.125:3000',
+    'http://31.220.60.125:8001',
 ]
 
 

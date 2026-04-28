@@ -556,10 +556,10 @@ def stripe_webhook(request):
 
     print("✅ EVENT:", event["type"])
 
+    # ✅ Checkout completed
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
 
-        # price_id দিয়ে addon/plan distinguish করো
         try:
             line_items = stripe.checkout.Session.list_line_items(session["id"])
             price_id = line_items.data[0].price.id
@@ -570,7 +570,6 @@ def stripe_webhook(request):
         addon = AddOn.objects.filter(stripe_price_id=price_id).first()
 
         if addon:
-            # ✅ Add-On payment
             try:
                 email = session["customer_email"] or session["customer_details"]["email"]
                 stripe_sub_id = session["subscription"]
@@ -610,7 +609,6 @@ def stripe_webhook(request):
                 return HttpResponse(status=500)
 
         else:
-            # ✅ Subscription payment
             try:
                 email = session["customer_email"] or session["customer_details"]["email"]
                 stripe_sub_id = session["subscription"]
@@ -656,5 +654,74 @@ def stripe_webhook(request):
                 traceback.print_exc()
                 return HttpResponse(status=500)
 
-    return HttpResponse(status=200)
+    # ✅ Cancel
+    elif event["type"] == "customer.subscription.deleted":
+        try:
+            stripe_sub_id = event["data"]["object"]["id"]
+            sub = Subscription.objects.filter(
+                stripe_subscription_id=stripe_sub_id
+            ).first()
+            if sub:
+                sub.is_active = False
+                sub.status = "canceled"
+                sub.save()
+                sub.user.current_plan = None
+                sub.user.save()
 
+                # addon গুলোও deactivate করো
+                UserAddOn.objects.filter(
+                    user=sub.user,
+                    is_active=True
+                ).update(is_active=False)
+
+                print("❌ SUBSCRIPTION CANCELED:", stripe_sub_id)
+        except Exception as e:
+            print("🔥 CANCEL ERROR:", e)
+            return HttpResponse(status=500)
+
+    # ✅ Upgrade / Downgrade
+    elif event["type"] == "customer.subscription.updated":
+        try:
+            stripe_sub = event["data"]["object"]
+            stripe_sub_id = stripe_sub["id"]
+            price_id = stripe_sub["items"]["data"][0]["price"]["id"]
+
+            plan = Plan.objects.filter(stripe_price_id=price_id).first()
+            if plan:
+                sub = Subscription.objects.filter(
+                    stripe_subscription_id=stripe_sub_id
+                ).first()
+                if sub:
+                    sub.plan = plan
+                    sub.status = stripe_sub["status"]
+                    sub.is_active = stripe_sub["status"] == "active"
+                    sub.save()
+                    sub.user.current_plan = sub
+                    sub.user.save()
+                    print("🔄 SUBSCRIPTION UPDATED:", stripe_sub_id)
+        except Exception as e:
+            print("🔥 UPDATE ERROR:", e)
+            return HttpResponse(status=500)
+
+    # ✅ Payment Failed
+    elif event["type"] == "invoice.payment_failed":
+        try:
+            stripe_sub_id = event["data"]["object"]["subscription"]
+            Subscription.objects.filter(
+                stripe_subscription_id=stripe_sub_id
+            ).update(status="past_due")
+            print("⚠️ PAYMENT FAILED:", stripe_sub_id)
+        except Exception as e:
+            print("🔥 PAYMENT FAILED ERROR:", e)
+            return HttpResponse(status=500)
+
+    # ✅ Refund
+    elif event["type"] == "charge.refunded":
+        try:
+            charge = event["data"]["object"]
+            print("💰 REFUND PROCESSED:", charge["id"])
+        except Exception as e:
+            print("🔥 REFUND ERROR:", e)
+            return HttpResponse(status=500)
+
+    return HttpResponse(status=200)
