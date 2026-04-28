@@ -115,6 +115,7 @@ class Service(models.Model):
     city = models.ManyToManyField(City, blank=True)
     locations = models.ManyToManyField(ServiceLocation, blank=True)
     images = models.JSONField(default=list, blank=True)
+    videos = models.JSONField(default=list, blank=True)
     social_media = models.ManyToManyField('auths.SocialMedia', blank=True)
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
     

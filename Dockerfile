@@ -50,4 +50,4 @@ COPY apps/ ./apps/
 EXPOSE 8000
 
 # Optionally set the entrypoint and command (if you want to run gunicorn directly)
-# CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application", "--workers", "3", "--timeout", "180"]

@@ -199,7 +199,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             "subcategory", "city", "service_details", "phone_number", "social_media",
             "user_details", "category_details",
             "location_details", "price_details", "social_media_details",
-            "about", "images", "is_published", "created_at",
+            "about", "images", "videos", "is_published", "created_at",
         ]
         
     def get_category_details(self, obj):

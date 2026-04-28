@@ -137,6 +137,7 @@ class ServiceCreateAPIView(APIView):
             requested_subcategories = request.data.get("subcategory", [])
             requested_cities        = request.data.get("city", [])  # ✅ city wise
             requested_images        = request.data.get("images", [])
+            requested_videos = request.data.get("videos", [])
 
             errors = {}
             if requested_subcategories and len(requested_subcategories) > plan.max_sub_categories:
@@ -145,6 +146,8 @@ class ServiceCreateAPIView(APIView):
                 errors["city"] = f"Your {plan.plan_name} plan allows maximum {plan.max_locations} city(s)."
             if requested_images and len(requested_images) > plan.max_images:
                 errors["images"] = f"Your {plan.plan_name} plan allows maximum {plan.max_images} image(s)."
+            if requested_videos and len(requested_videos) > plan.max_videos:
+                errors["videos"] = f"Your {plan.plan_name} plan allows maximum {plan.max_videos} video(s)."
 
             if errors:
                 return failure_response(
@@ -174,7 +177,8 @@ class ServiceCreateAPIView(APIView):
                 error=str(e),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )        
-                     
+
+               
 class ServiceDetailAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -339,6 +343,7 @@ class ServiceUpdateAPIView(APIView):
             requested_subcategories = request.data.get("subcategory", [])
             requested_cities        = request.data.get("city", [])
             requested_images        = request.data.get("images", [])
+            requested_videos = request.data.get("videos", [])
 
             # Add-On check
             has_location_addon = UserAddOn.objects.filter(
@@ -365,6 +370,9 @@ class ServiceUpdateAPIView(APIView):
                 errors["city"] = f"Your plan allows maximum {max_locations} location(s)."
             if requested_images and len(requested_images) > plan.max_images:
                 errors["images"] = f"Your {plan.plan_name} plan allows maximum {plan.max_images} image(s)."
+                
+            if requested_videos and len(requested_videos) > plan.max_videos:
+                errors["videos"] = f"Your {plan.plan_name} plan allows maximum {plan.max_videos} video(s)."    
 
             if errors:
                 return failure_response(
