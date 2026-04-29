@@ -22,7 +22,6 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 
-
 class UserListAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -42,25 +41,53 @@ class UserListAPIView(APIView):
                 "service_set__city",
             ).order_by("-id")
 
-            plan_name = request.GET.get("plan_name")
-            country   = request.GET.get("country")
-            city      = request.GET.get("city")
-            category  = request.GET.get("category")
+            # ── Filters ───────────────────────────────
+            plan_name   = request.GET.get("plan_name")
+            country     = request.GET.get("country")
+            city        = request.GET.get("city")
+            category    = request.GET.get("category")
+            subcategory = request.GET.get("subcategory")
 
+            # ── Apply filters ─────────────────────────
             if plan_name:
-                queryset = queryset.filter(current_plan__plan__plan_name__iexact=plan_name)
+                queryset = queryset.filter(
+                    current_plan__plan__plan_name__iexact=plan_name
+                )
+
             if country:
-                queryset = queryset.filter(service__country__name__iexact=country)
+                queryset = queryset.filter(
+                    service__country__name__iexact=country
+                )
+
+            # ✅ MULTIPLE CITY FILTER
             if city:
-                queryset = queryset.filter(service__city__name__iexact=city)
+                city_ids = [i.strip() for i in city.split(",") if i.strip()]
+                queryset = queryset.filter(
+                    service__city__id__in=city_ids
+                )
+
             if category:
-                queryset = queryset.filter(service__category__id=category)
+                queryset = queryset.filter(
+                    service__category__id=category
+                )
+
+            # ✅ MULTIPLE SUBCATEGORY FILTER
+            if subcategory:
+                subcategory_ids = [i.strip() for i in subcategory.split(",") if i.strip()]
+                queryset = queryset.filter(
+                    service__subcategory__id__in=subcategory_ids
+                )
 
             queryset = queryset.distinct()
 
-            # ── Filter lists ─────────────────────────────────────
-            countries = list(Country.objects.values_list("name", flat=True).order_by("name"))
-            cities    = list(City.objects.values_list("name", flat=True).order_by("name"))
+            # ── Filter lists ───────────────────────────
+            countries = list(
+                Country.objects.values_list("name", flat=True).order_by("name")
+            )
+
+            cities = list(
+                City.objects.values_list("name", flat=True).order_by("name")
+            )
 
             category_list = []
             for cat in Category.objects.prefetch_related('subcategories').all():
@@ -73,7 +100,7 @@ class UserListAPIView(APIView):
                     ]
                 })
 
-            # ── Pagination ────────────────────────────────────────
+            # ── Pagination ─────────────────────────────
             paginator = CustomPagination()
             paginated_queryset = paginator.paginate_queryset(queryset, request)
             serializer = UserSerializer(paginated_queryset, many=True)
