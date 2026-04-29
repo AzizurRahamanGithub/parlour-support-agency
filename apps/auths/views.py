@@ -1,3 +1,4 @@
+import secrets
 from ..core.response import failure_response, success_response
 from rest_framework import viewsets, permissions, status
 from ..core.pagination import CustomPagination
@@ -513,16 +514,14 @@ class ForgotPasswordView(APIView):
             status=status.HTTP_200_OK
         )
         
-class ResetPasswordView(APIView):
-
+class ForgetVerifyOTPView(APIView):
     def post(self, request):
         email = request.data.get("email")
         otp = request.data.get("otp")
-        password = request.data.get("password")
 
-        if not email or not otp or not password:
+        if not email or not otp:
             return failure_response(
-                "Email, OTP and password are required.",
+                "Email and OTP are required.",
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -530,33 +529,55 @@ class ResetPasswordView(APIView):
             user = User.objects.get(email=email)
             profile = user.userprofile
         except User.DoesNotExist:
-            return failure_response(
-                "User not found.",
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return failure_response("User not found.", status=status.HTTP_404_NOT_FOUND)
 
-        # 🔒 OTP check
         if profile.otp != otp:
-            return failure_response(
-                "Invalid OTP.",
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return failure_response("Invalid OTP.", status=status.HTTP_400_BAD_REQUEST)
 
         if profile.is_otp_expired():
+            return failure_response("OTP expired.", status=status.HTTP_400_BAD_REQUEST)
+
+        # ✅ OTP valid — reset_token generate করো
+        reset_token = secrets.token_urlsafe(32)
+        profile.reset_token = reset_token
+        profile.otp = None  # OTP clear করো
+        profile.save()
+
+        return success_response(
+            "OTP verified successfully.",
+            {"reset_token": reset_token},
+            status=status.HTTP_200_OK
+        )
+        
+        
+class ResetPasswordView(APIView):
+    def post(self, request):
+        reset_token = request.data.get("reset_token")
+        password = request.data.get("password")
+
+        if not reset_token or not password:
             return failure_response(
-                "OTP expired.",
+                "reset_token and password are required.",
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 🔐 Reset password
+        try:
+            profile = UserProfile.objects.get(reset_token=reset_token)
+            user = profile.user
+        except UserProfile.DoesNotExist:
+            return failure_response(
+                "Invalid or expired reset token.",
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         user.set_password(password)
         user.save()
 
-        # 🔥 clear OTP after use
-        profile.otp = None
+        profile.reset_token = None
         profile.save()
 
-        return success_response("Password reset successfully.")        
+        return success_response("Password reset successfully.", status=status.HTTP_200_OK)
+
 
 # class ForgotPasswordView(APIView):
 #     """
