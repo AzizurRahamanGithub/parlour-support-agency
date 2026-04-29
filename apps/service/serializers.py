@@ -169,9 +169,12 @@ class UserSerializer(serializers.ModelSerializer):
                     })
         return categories
 
+    # def get_service(self, obj):
+    #     services = obj.service_set.filter(is_published=True)
+    #     return MiniServiceSerializer(services, many=True).data
     def get_service(self, obj):
-        services = obj.service_set.filter(is_published=True)
-        return MiniServiceSerializer(services, many=True).data
+        service = obj.service_set.first()
+        return MiniServiceSerializer(service).data
 
 
 
