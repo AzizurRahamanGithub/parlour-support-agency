@@ -98,19 +98,19 @@ UNFOLD = {
         "show_search": True,
         "show_all_applications": True,
         "navigation": [
-        {
+        # {
                 
-                "icon": "dashboard",
-                "separator": True,
-                "collapsible": False,
-                "items": [
-                    {
-                        "title": "Dashboard ",
-                        "icon": "dashboard",
-                        "link": "/admin/custom_home/dashboarddummy/",
-                    }
-                ],
-            },
+        #         "icon": "dashboard",
+        #         "separator": True,
+        #         "collapsible": False,
+        #         "items": [
+        #             {
+        #                 "title": "Dashboard ",
+        #                 "icon": "dashboard",
+        #                 "link": "/admin/custom_home/dashboarddummy/",
+        #             }
+        #         ],
+        #     },
         
             
             {
