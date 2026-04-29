@@ -25,6 +25,7 @@ django-summernote==0.8.20.0
 django-timezone-field==7.2.1
 django-tinymce==5.0.0
 django-unfold==0.90.0
+gunicorn==21.2.0
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 idna==3.11
