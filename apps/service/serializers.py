@@ -81,13 +81,14 @@ class SocialMediaSerializer(serializers.ModelSerializer):
     class Meta:
         model = SocialMedia
         fields = ["id", "platform", "username", "url"]
-
-
+        
+        
 class UserDetailesSerializer(serializers.ModelSerializer):
     social_media = SocialMediaSerializer(many=True, read_only=True)
     image = serializers.ListField(
-        child=serializers.URLField(), read_only=True, default=list  # ✅ fix
+        child=serializers.URLField(), read_only=True, default=list
     )
+    current_plan = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = CustomUser
@@ -97,10 +98,20 @@ class UserDetailesSerializer(serializers.ModelSerializer):
             "full_name",
             "image",
             "phone_number",
-            "designation",
+            "current_plan",
             "social_media",
         ]
 
+    def get_current_plan(self, obj):
+        if obj.current_plan and obj.current_plan.plan:
+            return {
+                "plan_name": obj.current_plan.plan.plan_name,
+                "status": obj.current_plan.status,
+                "is_active": obj.current_plan.is_active,
+                "start_date": obj.current_plan.start_date,
+                "end_date": obj.current_plan.end_date,
+            }
+        return None
 
 class MiniServiceSerializer(serializers.ModelSerializer):
     # শুধু selected subcategory দেখাবে
