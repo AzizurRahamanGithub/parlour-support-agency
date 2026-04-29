@@ -199,6 +199,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     city = serializers.PrimaryKeyRelatedField(
         queryset=City.objects.all(), many=True, write_only=True, required=False
     )
+    full_name = serializers.CharField(write_only=True, required=False)
     service_details = ServicePriceSerializer(many=True, write_only=True, required=False)
     social_media = SocialMediaSerializer(many=True, write_only=True, required=False)
     phone_number = serializers.CharField(write_only=True, required=False)
@@ -212,12 +213,18 @@ class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         fields = [
-            "id", "image",
+            "id", "image", "full_name",
             "subcategory", "city", "service_details", "phone_number", "social_media",
             "user_details", "category_details",
             "location_details", "price_details",
             "about", "images", "videos", "is_published", "created_at",
         ]
+
+    def validate(self, attrs):
+        price_details = self.initial_data.get("price_details")
+        if price_details is not None:
+            attrs["service_details"] = price_details
+        return attrs
 
     def _set_categories_from_subcategories(self, service, subcategories):
         categories = set()
@@ -298,7 +305,8 @@ class ServiceSerializer(serializers.ModelSerializer):
         prices_data   = validated_data.pop("service_details", None)
         social_medias = validated_data.pop("social_media", None)
         phone_number  = validated_data.pop("phone_number", None)
-        image = validated_data.pop("image", None)  # ✅ add
+        image         = validated_data.pop("image", None)
+        full_name     = validated_data.pop("full_name", None)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -312,13 +320,15 @@ class ServiceSerializer(serializers.ModelSerializer):
             instance.city.set(cities)
             self._set_countries_from_cities(instance, cities)
 
-        # ✅ user fields update
         user_updated = False
         if phone_number:
             instance.user.phone_number = phone_number
             user_updated = True
         if image:
-            instance.user.image = [image]  # ✅ সবসময় list এ wrap করো
+            instance.user.image = [image]
+            user_updated = True
+        if full_name:
+            instance.user.full_name = full_name
             user_updated = True
         if user_updated:
             instance.user.save()
