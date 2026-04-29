@@ -160,7 +160,6 @@ class UserAddOnAdmin(ModelAdmin):
        
 @admin.register(Plan)
 class PlanAdmin(ModelAdmin):
-
     list_display = [
         "plan_name",
         "stripe_price_id",
@@ -170,23 +169,18 @@ class PlanAdmin(ModelAdmin):
         "is_vip_placement",
         "created_at",
     ]
-
     search_fields = ["plan_name", "stripe_price_id"]
-
     list_filter = [
         "plan_name",
         "is_vip_placement",
         "is_top_profile",
         "is_front_page",
     ]
-
     ordering = ["-created_at"]
-
     fieldsets = (
         ("Basic Info", {
             "fields": ("plan_name", "stripe_price_id")
         }),
-
         ("Limits", {
             "fields": (
                 "max_listings",
@@ -196,7 +190,6 @@ class PlanAdmin(ModelAdmin):
                 "max_videos",
             )
         }),
-
         ("Features", {
             "fields": (
                 "is_top_profile",
@@ -206,7 +199,6 @@ class PlanAdmin(ModelAdmin):
                 "monthly_bumps",
             )
         }),
-
         ("Support", {
             "fields": (
                 "basic_support",
@@ -215,7 +207,11 @@ class PlanAdmin(ModelAdmin):
             )
         }),
     )
-    
+
+    def save_model(self, request, obj, form, change):
+        # ✅ max_categories থেকে max_sub_categories auto fill
+        obj.max_sub_categories = obj.max_categories
+        super().save_model(request, obj, form, change)
     
     
 @admin.register(Subscription)
