@@ -600,8 +600,8 @@ class CreateCheckoutSession(APIView):
                     "quantity": 1,
                 }
             ],
-            success_url="http://localhost:3000/membership/success",
-            cancel_url="http://localhost:3000/membership/cancel",
+            success_url="http://31.220.60.125:3000/membership/success",
+            cancel_url="http://31.220.60.125:3000/membership/success",
         )
 
         return success_response(
@@ -661,8 +661,8 @@ class PurchaseAddOnView(APIView):
                     "quantity": 1,
                 }
             ],
-            success_url="http://localhost:3000/membership/success",
-            cancel_url="http://localhost:3000/membership/cancel",
+            success_url="http://31.220.60.125:3000/membership/success",
+            cancel_url="http://31.220.60.125:3000/membership/success",
             metadata={
                 "type": "addon",
                 "user_id": str(request.user.id),
