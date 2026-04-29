@@ -105,11 +105,11 @@ class UserDetailesSerializer(serializers.ModelSerializer):
     def get_current_plan(self, obj):
         if obj.current_plan and obj.current_plan.plan:
             return {
-                "plan_name": obj.current_plan.plan.plan_name,
                 "status": obj.current_plan.status,
                 "is_active": obj.current_plan.is_active,
                 "start_date": obj.current_plan.start_date,
                 "end_date": obj.current_plan.end_date,
+                "plan": PlanSerializer(obj.current_plan.plan).data,
             }
         return None
 
