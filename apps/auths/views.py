@@ -257,22 +257,13 @@ class ResendOTPAPIView(APIView):
         profile.otp = otp
         profile.otp_created_at = timezone.now()
         profile.save()
-        
-        #send email 
-        email_subject = "Your OTP for Verification"
-        email_body = render_to_string(
-            "reset_password_email.html",
-            {
-                "otp": otp,
-                "subject": "Email Verification",
-                "message": "Use the following OTP to verify your account.",
-            },
-        )
-        email = EmailMultiAlternatives(email_subject, "", to=[user.email])
-        email.attach_alternative(email_body, "text/html")
-        email.send()
 
-        # ✅ return the string email, not the object
+        email_subject = "Your OTP for Verification"
+        email_body = f"Your OTP is: {otp}"
+
+        email_msg = EmailMultiAlternatives(email_subject, email_body, to=[user.email])
+        email_msg.send()
+
         return success_response("A new OTP has been sent to your email.", {"email": user.email})
 
 
