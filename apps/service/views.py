@@ -284,6 +284,45 @@ class UpgradeSubscriptionView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             ) 
  
+ 
+class MyServiceDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            service = Service.objects.select_related(
+                "user",
+                "user__current_plan",
+                "user__current_plan__plan"
+            ).prefetch_related(
+                "category",
+                "subcategory",
+                "city",
+                "country",
+                "prices",
+                "user__social_media",
+            ).filter(user=request.user).first()
+
+            if not service:
+                return failure_response(
+                    message="No service found.",
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            serializer = ServiceSerializer(service)
+            return success_response(
+                message="Service fetched successfully",
+                data=serializer.data,
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return failure_response(
+                message="Failed to fetch service",
+                error=str(e),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+ 
                
 class ServiceDetailAPIView(APIView):
     permission_classes = [AllowAny]
