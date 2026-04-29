@@ -123,7 +123,7 @@ UNFOLD = {
                     {"title": _("Regular Users"), "icon": "person", "link": "/admin/auths/customuser/users/"},
                     {"title": _("Groups"), "icon": "group", "link": "/admin/auth/group/"},
                     {"title": _("Contact Messages"), "icon": "contact_mail", "link": "/admin/auths/contactmessage/"},
-                    {"title": _("Help Us Improve"), "icon": "feedback", "link": "/admin/auths/helpusimprove/"},
+                    # {"title": _("Help Us Improve"), "icon": "feedback", "link": "/admin/auths/helpusimprove/"},
                 ],
             },
             
