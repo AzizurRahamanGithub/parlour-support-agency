@@ -145,37 +145,24 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        identifier = data['identifier']
-        password = data['password']
+        identifier = data["identifier"]
+        password = data["password"]
 
-        # 🔍 find user
-        if '@' in identifier and '.' in identifier:
-            user = User.objects.filter(email=identifier).first()
-        else:
-            user = User.objects.filter(username=identifier).first()
+        user = User.objects.filter(email=identifier).first()
 
         if not user:
             raise serializers.ValidationError({
-                "identifier": "Invalid credentials."
-            })
-
-        if not user.is_active:
-            raise serializers.ValidationError({
-                "identifier": "Account inactive."
+                "identifier": "User not found."
             })
 
         if not user.check_password(password):
             raise serializers.ValidationError({
-                "password": "Incorrect password."
+                "identifier": "Invalid email or password."
             })
 
-        user = authenticate(username=user.username, password=password)
-
-        if not user:
-            raise serializers.ValidationError("Invalid credentials.")
-
-        # 🔥 ONLY return user
-        return {"user": user}
+        # ❌ এখানে is_active check নাই
+        data["user"] = user
+        return data
 
 
 class TokenSerializer(serializers.Serializer):
