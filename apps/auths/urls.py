@@ -2,7 +2,7 @@ from rest_framework.routers import DefaultRouter
 from django.urls import path, include
 from .views import (
      LoginView, ProtectedView,
-    LogoutView, GetNewAccessTokenView, ForgotPasswordView, PasswordChangeView, ResetPasswordView, ProfileView,  GoogleOauth, ResendVerificationEmailAPIView, DetailSingleProfile, AdminUserView
+    LogoutView, GetNewAccessTokenView, ForgotPasswordView, PasswordChangeView, ResetPasswordView, ProfileView,  GoogleOauth, ResendVerificationEmailAPIView, DetailSingleProfile, AdminUserView, ForgetVerifyOTPView
 )
 from .views import   ResendOTPAPIView, UserAPIView, UserDetailAPIView, RegisterAPIView,ContactMessageView, HelpUsImproveView, OTPVerifyAPIView
 
@@ -36,6 +36,7 @@ urlpatterns = [
     # --forgot_password
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot_password'),
 #     path('reset-password/<uidb64>/<token>/', ResetPasswordView.as_view(), name='reset_password'),
+     path('forget-otp-verify/', ForgetVerifyOTPView.as_view(), name='reset_password'),
      path('reset-password/', ResetPasswordView.as_view(), name='reset_password'),
 
     # ---- google auth
