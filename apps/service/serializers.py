@@ -202,7 +202,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     service_details = ServicePriceSerializer(many=True, write_only=True, required=False)
     social_media = SocialMediaSerializer(many=True, write_only=True, required=False)
     phone_number = serializers.CharField(write_only=True, required=False)
-
+    profile_image = serializers.CharField(write_only=True, required=False)
     # ── Read only ─────────────────────────────────────────
     category_details = serializers.SerializerMethodField(read_only=True)
     location_details = serializers.SerializerMethodField(read_only=True)
@@ -212,7 +212,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         fields = [
-            "id",
+            "id", "profile_image",
             "subcategory", "city", "service_details", "phone_number", "social_media",
             "user_details", "category_details",
             "location_details", "price_details",
@@ -298,6 +298,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         prices_data   = validated_data.pop("service_details", None)
         social_medias = validated_data.pop("social_media", None)
         phone_number  = validated_data.pop("phone_number", None)
+        profile_image = validated_data.pop("profile_image", None)  # ✅ add
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -311,9 +312,16 @@ class ServiceSerializer(serializers.ModelSerializer):
             instance.city.set(cities)
             self._set_countries_from_cities(instance, cities)
 
+        # ✅ user fields update
+        user_updated = False
         if phone_number:
             instance.user.phone_number = phone_number
-            instance.user.save(update_fields=["phone_number"])
+            user_updated = True
+        if profile_image:
+            instance.user.image = [profile_image]  # ✅ সবসময় list এ wrap করো
+            user_updated = True
+        if user_updated:
+            instance.user.save()
 
         if social_medias is not None:
             instance.social_media.all().delete()
