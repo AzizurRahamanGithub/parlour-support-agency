@@ -600,8 +600,8 @@ class CreateCheckoutSession(APIView):
                     "quantity": 1,
                 }
             ],
-            success_url="http://localhost:3000/success",
-            cancel_url="http://localhost:3000/cancel",
+            success_url="http://localhost:3000/membership/success",
+            cancel_url="http://localhost:3000/membership/cancel",
         )
 
         return success_response(
