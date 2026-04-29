@@ -92,18 +92,17 @@ X_FRAME_OPTIONS = "SAMEORIGIN"              # allows you to use modals insated o
 SILENCED_SYSTEM_CHECKS = ["security.W019"]  # ignores redundant warning messages
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # ✅ সবার আগে
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Static files serving
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # CORS handling
     'django.middleware.common.CommonMiddleware',
     "django.middleware.csrf.CsrfViewMiddleware",
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'allauth.account.middleware.AccountMiddleware',  # Django-allauth
-    'django.middleware.gzip.GZipMiddleware',  # gzip compression for performance
-    # 'debug_toolbar.middleware.DebugToolbarMiddleware',  ##Uncomment for debug toolbar
+    'allauth.account.middleware.AccountMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
