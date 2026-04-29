@@ -81,13 +81,8 @@ class UserListAPIView(APIView):
             queryset = queryset.distinct()
 
             # ── Filter lists ───────────────────────────
-            countries = list(
-                Country.objects.values_list("name", flat=True).order_by("name")
-            )
-
-            cities = list(
-                City.objects.values_list("name", flat=True).order_by("name")
-            )
+            cities = list(City.objects.values("id", "name"))
+            countries = list(Country.objects.values("id", "name"))
 
             category_list = []
             for cat in Category.objects.prefetch_related('subcategories').all():
