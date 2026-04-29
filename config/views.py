@@ -200,7 +200,7 @@ def home(request):
                 </div>
 
                 <div class="button-grid">
-                    <a href="/admin/custom_home/dashboarddummy/" class="btn btn-admin">
+                    <a href="/admin/auths/customuser/" class="btn btn-admin">
                         <span class="btn-icon">⚙️</span>
                         Admin Dashboard
                     </a>
