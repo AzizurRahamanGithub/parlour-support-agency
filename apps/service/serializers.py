@@ -247,7 +247,7 @@ class ServiceSerializer(serializers.ModelSerializer):
                 "id": sub.id,
                 "name": sub.name
             })
-        return list(category_map.values())
+        return list(category_map.values())[0] if category_map else {}
 
     def get_location_details(self, obj):
         country_map = {}
@@ -263,7 +263,7 @@ class ServiceSerializer(serializers.ModelSerializer):
                 "id": city.id,
                 "name": city.name
             })
-        return list(country_map.values())
+        return list(country_map.values())[0] if country_map else {}
 
     def create(self, validated_data):
         subcategories = validated_data.pop("subcategory", [])
