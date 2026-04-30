@@ -5,7 +5,7 @@ from .views import UserListAPIView, ServiceDetailAPIView, CreateCheckoutSession,
 # URL Patterns
 urlpatterns = [
     path('list/<int:id>/', ServiceDetailAPIView.as_view(), name='service-detail'),
-    path('update/<int:id>/', ServiceUpdateAPIView.as_view(), name='service-update'),
+    path('update/', ServiceUpdateAPIView.as_view(), name='service-update'),
     path("categories/", CategoryAPIView.as_view()),
     path("categories/<int:id>/", CategoryAPIView.as_view()),
     path("locations/", CountryAPIView.as_view()),
