@@ -477,12 +477,20 @@ class CountryAPIView(APIView):
             )
 
 
+
 class ServiceUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def patch(self, request, id):
+    def patch(self, request):
         try:
-            service = Service.objects.get(id=id, user=request.user)
+            # ✅ user based service fetch (NO ID)
+            service = Service.objects.filter(user=request.user).first()
+
+            if not service:
+                return failure_response(
+                    message="Service not found for this user.",
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
             subscription = Subscription.objects.filter(
                 user=request.user,
@@ -500,8 +508,8 @@ class ServiceUpdateAPIView(APIView):
             plan = subscription.plan
 
             requested_subcategories = request.data.get("subcategory", [])
-            requested_cities        = request.data.get("city", [])
-            requested_images        = request.data.get("images", [])
+            requested_cities = request.data.get("city", [])
+            requested_images = request.data.get("images", [])
             requested_videos = request.data.get("videos", [])
 
             # Add-On check
@@ -523,15 +531,18 @@ class ServiceUpdateAPIView(APIView):
             max_sub_categories = plan.max_sub_categories + (has_category_addon.addon.extra_limit if has_category_addon else 0)
 
             errors = {}
+
             if requested_subcategories and len(requested_subcategories) > max_sub_categories:
                 errors["subcategory"] = f"Your plan allows maximum {max_sub_categories} subcategory(s)."
+
             if requested_cities and len(requested_cities) > max_locations:
                 errors["city"] = f"Your plan allows maximum {max_locations} location(s)."
+
             if requested_images and len(requested_images) > plan.max_images:
                 errors["images"] = f"Your {plan.plan_name} plan allows maximum {plan.max_images} image(s)."
-                
+
             if requested_videos and len(requested_videos) > plan.max_videos:
-                errors["videos"] = f"Your {plan.plan_name} plan allows maximum {plan.max_videos} video(s)."    
+                errors["videos"] = f"Your {plan.plan_name} plan allows maximum {plan.max_videos} video(s)."
 
             if errors:
                 return failure_response(
@@ -555,17 +566,12 @@ class ServiceUpdateAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        except Service.DoesNotExist:
-            return failure_response(
-                message="Service not found.",
-                status=status.HTTP_404_NOT_FOUND
-            )
         except Exception as e:
             return failure_response(
                 message="Failed to update service",
                 error=str(e),
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )  
+            )
     
             
 class PlanListView(APIView):
