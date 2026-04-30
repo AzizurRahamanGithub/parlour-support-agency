@@ -291,9 +291,11 @@ class ServiceSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         subcategories = validated_data.pop("subcategory", [])
         cities        = validated_data.pop("city", [])
+        image         = validated_data.pop("image", None)  # comma সরাও
         prices_data   = validated_data.pop("service_details", [])
         social_medias = validated_data.pop("social_media", [])
         phone_number  = validated_data.pop("phone_number", None)
+        full_name     = validated_data.pop("full_name", None)
 
         service = Service.objects.create(**validated_data)
 
@@ -302,9 +304,18 @@ class ServiceSerializer(serializers.ModelSerializer):
         service.city.set(cities)
         self._set_countries_from_cities(service, cities)
 
+        user_updated = False
         if phone_number:
             service.user.phone_number = phone_number
-            service.user.save(update_fields=["phone_number"])
+            user_updated = True
+        if image:
+            service.user.image = [image]
+            user_updated = True
+        if full_name:
+            service.user.full_name = full_name
+            user_updated = True
+        if user_updated:
+            service.user.save()
 
         for sm_data in social_medias:
             social = SocialMedia.objects.create(user=service.user, **sm_data)
