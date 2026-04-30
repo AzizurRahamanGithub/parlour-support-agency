@@ -98,6 +98,7 @@ class UserDetailesSerializer(serializers.ModelSerializer):
             "full_name",
             "image",
             "phone_number",
+            "category",
             "current_plan",
             "social_media",
         ]
@@ -208,7 +209,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     category_details = serializers.SerializerMethodField(read_only=True)
     location_details = serializers.SerializerMethodField(read_only=True)
     price_details    = ServicePriceSerializer(source="prices", many=True, read_only=True)
-    user_details     = UserDetailesSerializer(source="user", read_only=True)
+    user_details     = serializers.SerializerMethodField(read_only=True)  # changed
 
     class Meta:
         model = Service
@@ -226,6 +227,53 @@ class ServiceSerializer(serializers.ModelSerializer):
             attrs["service_details"] = price_details
         return attrs
 
+    # service আছে বা নেই — context থেকে user নেবে
+    def get_user_details(self, obj):
+        user = obj.user if (obj and obj.pk) else self.context.get("user")
+        if not user:
+            return {}
+        return UserDetailesSerializer(user).data
+
+    def get_category_details(self, obj):
+        if not obj or not obj.pk:
+            return {}
+        category_map = {}
+        for sub in obj.subcategory.all():
+            cat = sub.category
+            if not cat:
+                continue
+            if cat.id not in category_map:
+                category_map[cat.id] = {
+                    "id": cat.id,
+                    "name": cat.name,
+                    "subcategories": []
+                }
+            category_map[cat.id]["subcategories"].append({
+                "id": sub.id,
+                "name": sub.name
+            })
+        return list(category_map.values())[0] if category_map else {}
+
+    def get_location_details(self, obj):
+        if not obj or not obj.pk:
+            return {}
+        country_map = {}
+        for city in obj.city.all():
+            country = city.country
+            if not country:
+                continue
+            if country.id not in country_map:
+                country_map[country.id] = {
+                    "id": country.id,
+                    "name": country.name,
+                    "cities": []
+                }
+            country_map[country.id]["cities"].append({
+                "id": city.id,
+                "name": city.name
+            })
+        return list(country_map.values())[0] if country_map else {}
+
     def _set_categories_from_subcategories(self, service, subcategories):
         categories = set()
         for sub in subcategories:
@@ -239,38 +287,6 @@ class ServiceSerializer(serializers.ModelSerializer):
             if city.country:
                 countries.add(city.country)
         service.country.set(list(countries))
-
-    def get_category_details(self, obj):
-        category_map = {}
-        for sub in obj.subcategory.select_related("category").all():
-            cat_id = sub.category.id
-            if cat_id not in category_map:
-                category_map[cat_id] = {
-                    "id": cat_id,
-                    "name": sub.category.name,
-                    "subcategories": []
-                }
-            category_map[cat_id]["subcategories"].append({
-                "id": sub.id,
-                "name": sub.name
-            })
-        return list(category_map.values())[0] if category_map else {}
-
-    def get_location_details(self, obj):
-        country_map = {}
-        for city in obj.city.select_related("country").all():
-            country_id = city.country.id
-            if country_id not in country_map:
-                country_map[country_id] = {
-                    "id": country_id,
-                    "name": city.country.name,
-                    "cities": []
-                }
-            country_map[country_id]["cities"].append({
-                "id": city.id,
-                "name": city.name
-            })
-        return list(country_map.values())[0] if country_map else {}
 
     def create(self, validated_data):
         subcategories = validated_data.pop("subcategory", [])
@@ -344,7 +360,6 @@ class ServiceSerializer(serializers.ModelSerializer):
             for price in prices_data:
                 ServicePrice.objects.create(service=instance, **price)
 
-        return instance
-    
+        return instance  
     
     

@@ -124,29 +124,26 @@ class DetailSingleProfile(RetrieveAPIView):
         return success_response("User details retrieved successfully", serializer.data)
 
 
-class ProfileView(RetrieveUpdateAPIView):
+class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = UserSerializer
 
-    def get_object(self):
-        return self.request.user
+    def get(self, request):
+        user = request.user
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return success_response("User details retrieved successfully", serializer.data)
+        serializer = UserSerializer(user)
+        data = serializer.data
 
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        data = request.data
-        # Proceed with the regular update logic
-        serializer = self.get_serializer(
-            instance, data=data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        # same logic like login view
+        plan_name = ""
+        if user.current_plan and user.current_plan.plan:
+            plan_name = user.current_plan.plan.plan_name
 
-        return success_response("Profile updated successfully", serializer.data)
+        data["current_plan"] = plan_name
+
+        return success_response(
+            "User details retrieved successfully",
+            data
+        )
 
 
 class UserAPIView(APIView):
