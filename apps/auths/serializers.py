@@ -125,13 +125,19 @@ class CustomUserAllSerializer(serializers.ModelSerializer):
         
 
 class UserSerializer(serializers.ModelSerializer):
-    plan = PlanSerializer(read_only=True)
 
     class Meta:
         model = CustomUser
-        fields = ('id', 'full_name', 'email', 'designation', 'is_active', 'plan',
-                  'category', 'address', 'phone_number', 'image', 'created_at')
-        read_only_fields = ('id', 'username', 'email', 'is_active',)
+        fields = (
+            'id',
+            'full_name',
+            'email',
+            'image',
+            'category',
+            # 'image',
+            # 'created_at'
+        )
+        read_only_fields = ('id', 'username', 'email', 'is_active')
 
     def create(self, validated_data):
         return User.objects.create(**validated_data)

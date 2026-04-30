@@ -3,9 +3,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Count
 from rest_framework import status
 from apps.core.response import success_response, failure_response
-from .models import Service, Subscription, Plan, Category, Country, City, AddOn, UserAddOn
+from .models import Service, Subscription, Plan, Category, Country, City, AddOn, UserAddOn, SubCategory
 from apps.core.pagination import CustomPagination
-from .serializers import ServiceSerializer, UserSerializer, PlanSerializer, ServiceLocation, CategorySerializer, CountrySerializer, CitySerializer
+from .serializers import ServiceSerializer, UserSerializer, PlanSerializer, ServiceLocation, CategorySerializer, CountrySerializer, CitySerializer, UserDetailesSerializer
 from apps.auths.models import SocialMedia, CustomUser
 from django.utils import timezone
 import stripe            
@@ -18,6 +18,9 @@ from datetime import datetime
 from django.utils import timezone
 from datetime import datetime, timezone as dt_timezone
 from django.utils.timezone import now
+from django.db.models import Prefetch
+
+
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
@@ -290,29 +293,40 @@ class MyServiceDetailAPIView(APIView):
 
     def get(self, request):
         try:
-            service = Service.objects.select_related(
-                "user",
-                "user__current_plan",
-                "user__current_plan__plan"
+            user = CustomUser.objects.select_related(
+                "current_plan",
+                "current_plan__plan"
             ).prefetch_related(
-                "category",
-                "subcategory",
-                "city",
-                "country",
+                "social_media"
+            ).get(id=request.user.id)
+
+            service = Service.objects.prefetch_related(
+                Prefetch("subcategory", queryset=SubCategory.objects.select_related("category")),
+                Prefetch("city", queryset=City.objects.select_related("country")),
                 "prices",
-                "user__social_media",
             ).filter(user=request.user).first()
 
-            if not service:
-                return failure_response(
-                    message="No service found.",
-                    status=status.HTTP_404_NOT_FOUND
-                )
+            if service:
+                serializer = ServiceSerializer(service, context={"user": user})
+                data = serializer.data
+            else:
+                # service নেই, শুধু user info দাও
+                data = {
+                    "id": None,
+                    "user_details": UserDetailesSerializer(user).data,
+                    "category_details": {},
+                    "location_details": {},
+                    "price_details": [],
+                    "about": None,
+                    "images": [],
+                    "videos": [],
+                    "is_published": False,
+                    "created_at": None,
+                }
 
-            serializer = ServiceSerializer(service)
             return success_response(
                 message="Service fetched successfully",
-                data=serializer.data,
+                data=data,
                 status=status.HTTP_200_OK
             )
 
