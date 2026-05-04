@@ -29,6 +29,7 @@ gunicorn==21.2.0
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 idna==3.11
+psycopg2-binary
 jmespath==1.1.0
 kombu==5.6.2
 packaging==26.1
