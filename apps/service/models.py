@@ -5,6 +5,7 @@ import stripe
 
 class Category(models.Model):
     name = models.CharField(max_length=200, blank=True, null=True)
+    slug = models.CharField(max_length=50, blank=True, null=True)
     description= models.TextField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)

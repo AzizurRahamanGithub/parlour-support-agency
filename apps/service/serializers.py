@@ -220,7 +220,18 @@ class ServiceSerializer(serializers.ModelSerializer):
             "location_details", "price_details",
             "about", "images", "videos", "is_published", "created_at",
         ]
-
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user = self.context.get("user")
+        
+        if user and user.category:
+            self.fields["subcategory"].queryset = SubCategory.objects.filter(
+                category__slug=user.category
+            )
+        else:
+            self.fields["subcategory"].queryset = SubCategory.objects.none()
+    
     def validate(self, attrs):
         price_details = self.initial_data.get("price_details")
         if price_details is not None:
